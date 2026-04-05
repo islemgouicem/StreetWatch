@@ -19,3 +19,5 @@ coverage/
 .DS_Store
 Thumbs.db
 .vscode/
+
+web_map/node_modules
