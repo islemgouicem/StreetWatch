@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import '../screens/home_screen.dart';
-import '../screens/profile_screen.dart';
-import '../theme/app_theme.dart';
+import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/features/Map/presentation/page/map.dart';
+import 'package:mobile_app/features/Ranks/presentation/page/ranks.dart';
+import 'package:mobile_app/features/dashboard/presentation/pages/home_screen.dart';
+import 'package:mobile_app/features/profile/presentation/pages/profile_screen.dart';
 
 class NavigationWrapper extends StatefulWidget {
   const NavigationWrapper({super.key});
@@ -16,18 +18,15 @@ class _NavigationWrapperState extends State<NavigationWrapper> {
 
   final List<Widget> _screens = [
     const HomeScreen(),
-    const Scaffold(body: Center(child: Text('Map Screen'))),
-    const Scaffold(body: Center(child: Text('Ranks Screen'))),
+    MapPage(),
+    const RanksPage(),
     const ProfileScreen(),
   ];
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(
-        index: _currentIndex,
-        children: _screens,
-      ),
+      body: _screens[_currentIndex],
       bottomNavigationBar: Container(
         decoration: BoxDecoration(
           color: Colors.white,
