@@ -22,15 +22,16 @@ class AppTheme {
   static ThemeData get lightTheme {
     return ThemeData(
       useMaterial3: true,
+      scaffoldBackgroundColor: backgroundLight,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryBlue,
         primary: primaryBlue,
         surface: surfaceWhite,
       ),
-      textTheme: GoogleFonts.outfitTextTheme(),
+      textTheme: GoogleFonts.interTextTheme(),
       cardTheme: CardThemeData(
         elevation: 10,
-        shadowColor: Colors.black.withOpacity(0.05),
+        shadowColor: Colors.black.withValues(alpha: 0.05),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
       ),
     );
