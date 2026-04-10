@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import '../theme/app_theme.dart';
-import 'detection_result_screen.dart';
-import 'missions_screen.dart';
-import 'notifications_screen.dart';
+import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
+import 'package:mobile_app/features/notifications/presentation/pages/notifications_screen.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/detection_result_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});

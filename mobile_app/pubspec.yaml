@@ -36,6 +36,11 @@ dependencies:
   cupertino_icons: ^1.0.8
   latlong2: ^0.9.0
   flutter_map: ^6.1.0
+  google_fonts: ^6.2.1
+  percent_indicator: ^4.2.3
+  camera: ^0.12.0+1
+  path_provider: ^2.1.5
+  permission_handler: ^12.0.1
 
 dev_dependencies:
   flutter_test:

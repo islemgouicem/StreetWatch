@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import '../theme/app_theme.dart';
+import 'package:mobile_app/core/theme/app_theme.dart';
 import 'review_submit_screen.dart';
 
 class DetectionResultScreen extends StatelessWidget {

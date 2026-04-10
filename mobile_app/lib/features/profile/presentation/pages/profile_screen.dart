@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
-import 'missions_screen.dart';
-import 'my_reports_screen.dart';
-import '../theme/app_theme.dart';
+import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/my_reports_screen.dart';
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});

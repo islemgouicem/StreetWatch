@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'theme/app_theme.dart';
-import 'widgets/navigation_wrapper.dart';
+import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/navigation/navigation_wrapper.dart';
 
 void main() {
   runApp(const MyApp());
