@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
-import 'package:mobile_app/navigation/navigation_wrapper.dart';
+import 'package:mobile_app/features/auth/presentation/pages/onboarding_screen.dart';
 
 void main() {
   runApp(const MyApp());
@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
       debugShowCheckedModeBanner: false,
       title: 'StreetWatch',
       theme: AppTheme.lightTheme,
-      home: const NavigationWrapper(),
+      home: const OnboardingScreen(),
     );
   }
 }

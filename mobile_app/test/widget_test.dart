@@ -10,18 +10,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:mobile_app/main.dart';
 
 void main() {
-  testWidgets('StreetWatch navigation smoke test', (WidgetTester tester) async {
+  testWidgets('StreetWatch onboarding smoke test', (WidgetTester tester) async {
     await tester.pumpWidget(const MyApp());
     await tester.pump();
 
-    expect(find.text('Home'), findsOneWidget);
-    expect(find.text('Map'), findsOneWidget);
-    expect(find.text('Ranks'), findsOneWidget);
-    expect(find.text('Profile'), findsOneWidget);
-
-    await tester.tap(find.text('Profile'));
-    await tester.pump();
-
-    expect(find.text('Recent Badges'), findsOneWidget);
+    expect(find.text('StreetWatch'), findsOneWidget);
+    expect(find.text('Spot & Report'), findsOneWidget);
+    expect(find.text('Next'), findsOneWidget);
   });
 }
