@@ -119,8 +119,8 @@ class _MapPageState extends State<MapPage> {
                             show = !show;
                           }),
                           child: Container(
-                            width: 72,
-                            height: 72,
+                            width: 60,
+                            height: 60,
                             decoration: BoxDecoration(
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(16),
@@ -128,7 +128,7 @@ class _MapPageState extends State<MapPage> {
                             child: const Icon(
                               Icons.filter_alt_outlined,
                               color: Colors.blue,
-                              size: 26,
+                              size: 24,
                             ),
                           ),
                         ),
