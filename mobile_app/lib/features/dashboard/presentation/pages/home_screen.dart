@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/detection_result_screen.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
@@ -62,6 +63,22 @@ class _HeaderSection extends StatefulWidget {
 class _HeaderSectionState extends State<_HeaderSection> {
   late final ApiService _apiService;
   int? _rank;
+
+  String _fallbackDisplayName() {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final metadata = currentUser?.userMetadata;
+    final fullName = (metadata?['full_name'] as String?)?.trim();
+    if (fullName != null && fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    final email = currentUser?.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      return email.split('@').first;
+    }
+
+    return 'User';
+  }
 
   @override
   void initState() {
@@ -192,7 +209,12 @@ class _HeaderSectionState extends State<_HeaderSection> {
                                   ),
                                 ),
                                 Text(
-                                  user?.fullName ?? user?.username ?? 'User',
+                                  user?.fullName?.trim().isNotEmpty == true
+                                      ? user!.fullName!.trim()
+                                      : user?.username?.trim().isNotEmpty ==
+                                            true
+                                      ? user!.username!.trim()
+                                      : _fallbackDisplayName(),
                                   style: GoogleFonts.outfit(
                                     color: Colors.white,
                                     fontSize: 28,
@@ -425,7 +447,9 @@ class _ReportDamageActionState extends State<_ReportDamageAction> {
         setState(() => _isPressed = false);
         Navigator.push(
           context,
-          MaterialPageRoute(builder: (context) => const CameraScreen()),
+          MaterialPageRoute(
+            builder: (context) => const DetectionResultScreen(),
+          ),
         );
       },
       onTapCancel: () {

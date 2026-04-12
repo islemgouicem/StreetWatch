@@ -61,104 +61,125 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
-          // seach bar
-          Positioned(
-            top: 40,
-            left: 16,
-            right: 16,
-            child: Column(
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        cursorColor: Colors.blue,
-                        decoration: InputDecoration(
-                          hintText: 'Algiers, Algeria',
-                          prefixIcon: const Icon(
-                            Icons.location_on_outlined,
-                            color: Colors.blue,
-                          ),
-                          filled: true,
-                          fillColor: Colors.white,
-                          contentPadding: const EdgeInsets.symmetric(
-                            vertical: 0,
-                            horizontal: 10,
-                          ),
-                          border: OutlineInputBorder(
-                            borderRadius: BorderRadius.circular(15),
-                            borderSide: BorderSide.none,
-                          ),
-                        ),
-                      ),
-                    ),
-
-                    const SizedBox(width: 8),
-
-                    ElevatedButton(
-                      onPressed: () => setState(() {
-                        show = !show;
-                      }),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 5,
-                          vertical: 13,
-                        ),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                      ),
-                      child: const Icon(
-                        Icons.filter_alt_outlined,
-                        color: Colors.blue,
-                        size: 22,
-                      ),
-                    ),
-                  ],
-                ),
-
-                const SizedBox(height: 10),
-
-                show
-                    ? Container(
-                        width: double.infinity,
-                        child: Card(
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 10,
-                              vertical: 10,
+          SafeArea(
+            bottom: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Material(
+                          elevation: 6,
+                          borderRadius: BorderRadius.circular(18),
+                          shadowColor: Colors.black.withValues(alpha: 0.12),
+                          child: TextField(
+                            cursorColor: Colors.blue,
+                            decoration: InputDecoration(
+                              hintText: 'Algiers, Algeria',
+                              prefixIcon: const Icon(
+                                Icons.location_on_outlined,
+                                color: Colors.blue,
+                              ),
+                              filled: true,
+                              fillColor: Colors.white,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 18,
+                                horizontal: 10,
+                              ),
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide.none,
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: BorderSide.none,
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(18),
+                                borderSide: const BorderSide(
+                                  color: Color(0xFF3B82F6),
+                                  width: 1.2,
+                                ),
+                              ),
                             ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min, //  IMPORTANT
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Material(
+                        elevation: 6,
+                        borderRadius: BorderRadius.circular(16),
+                        shadowColor: Colors.black.withValues(alpha: 0.12),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => setState(() {
+                            show = !show;
+                          }),
+                          child: Container(
+                            width: 72,
+                            height: 72,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                            ),
+                            child: const Icon(
+                              Icons.filter_alt_outlined,
+                              color: Colors.blue,
+                              size: 26,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  if (show)
+                    Material(
+                      elevation: 8,
+                      borderRadius: BorderRadius.circular(20),
+                      shadowColor: Colors.black.withValues(alpha: 0.10),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 14,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Filter by severity',
+                              style: TextStyle(
+                                color: Color(0xFF64748B),
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 12),
+                            Wrap(
+                              spacing: 10,
+                              runSpacing: 10,
                               children: [
-                                const Text(
-                                  'Filter by severity',
-                                  style: TextStyle(
-                                    color: Colors.grey,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                                const SizedBox(height: 10),
-
-                                Wrap(
-                                  // auto wrap
-                                  spacing: 10,
-                                  runSpacing: 10,
-                                  children: [
-                                    _buildFilterButton('All', Colors.green),
-                                    _buildFilterButton('Low', Colors.green),
-                                    _buildFilterButton('Medium', Colors.orange),
-                                    _buildFilterButton('High', Colors.red),
-                                  ],
-                                ),
+                                _buildFilterButton('All', Colors.green),
+                                _buildFilterButton('Low', Colors.green),
+                                _buildFilterButton('Medium', Colors.orange),
+                                _buildFilterButton('High', Colors.red),
                               ],
                             ),
-                          ),
+                          ],
                         ),
-                      )
-                    : const SizedBox(),
-              ],
+                      ),
+                    ),
+                ],
+              ),
             ),
           ),
         ],
