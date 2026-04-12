@@ -1,87 +1,241 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/models/index.dart';
+import 'package:mobile_app/services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-class MyReportsScreen extends StatelessWidget {
+class MyReportsScreen extends StatefulWidget {
   const MyReportsScreen({super.key});
 
   @override
+  State<MyReportsScreen> createState() => _MyReportsScreenState();
+}
+
+class _MyReportsScreenState extends State<MyReportsScreen> {
+  late final ApiService _apiService;
+  bool _isLoading = true;
+  String? _error;
+  List<Report> _reports = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(Supabase.instance.client);
+    _loadReports();
+  }
+
+  Future<void> _loadReports() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+
+    try {
+      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
+      if (currentUserId == null) {
+        throw Exception('No authenticated user found');
+      }
+
+      final reports = await _apiService.getReports(page: 1, pageSize: 100);
+      final mine =
+          reports.where((report) => report.userId == currentUserId).toList()
+            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+
+      if (!mounted) return;
+      setState(() {
+        _reports = mine;
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  String _statusLabel(ReportStatus status) {
+    switch (status) {
+      case ReportStatus.verified:
+        return 'Verified';
+      case ReportStatus.resolved:
+        return 'Resolved';
+      case ReportStatus.rejected:
+        return 'Rejected';
+      case ReportStatus.pending:
+        return 'Pending';
+    }
+  }
+
+  Color _statusColor(ReportStatus status) {
+    switch (status) {
+      case ReportStatus.verified:
+        return const Color(0xFF22C55E);
+      case ReportStatus.resolved:
+        return const Color(0xFF10B981);
+      case ReportStatus.rejected:
+        return const Color(0xFFEF4444);
+      case ReportStatus.pending:
+        return const Color(0xFF64748B);
+    }
+  }
+
+  IconData _statusIcon(ReportStatus status) {
+    switch (status) {
+      case ReportStatus.verified:
+        return Icons.check_circle_outline;
+      case ReportStatus.resolved:
+        return Icons.task_alt;
+      case ReportStatus.rejected:
+        return Icons.cancel_outlined;
+      case ReportStatus.pending:
+        return Icons.help_outline;
+    }
+  }
+
+  String _severityLabel(Severity severity) {
+    switch (severity) {
+      case Severity.high:
+        return 'High';
+      case Severity.medium:
+        return 'Medium';
+      case Severity.low:
+        return 'Low';
+    }
+  }
+
+  Color _severityColor(Severity severity) {
+    switch (severity) {
+      case Severity.high:
+        return Colors.orange;
+      case Severity.medium:
+        return Colors.amber;
+      case Severity.low:
+        return Colors.green;
+    }
+  }
+
+  String _damageLabel(DamageType damageType) {
+    switch (damageType) {
+      case DamageType.pothole:
+        return 'Pothole';
+      case DamageType.crack:
+        return 'Cracked Pavement';
+      case DamageType.flooding:
+        return 'Flooding';
+      case DamageType.debris:
+        return 'Road Debris';
+      case DamageType.other:
+        return 'Infrastructure Issue';
+    }
+  }
+
+  String _locationLabel(Report report) {
+    return '${report.latitude.toStringAsFixed(5)}, ${report.longitude.toStringAsFixed(5)}';
+  }
+
+  String _formatDate(DateTime date) {
+    String twoDigits(int value) => value.toString().padLeft(2, '0');
+    final day = twoDigits(date.day);
+    final month = twoDigits(date.month);
+    final year = date.year.toString();
+    final hour = twoDigits(date.hour);
+    final minute = twoDigits(date.minute);
+    return '$day/$month/$year at $hour:$minute';
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final List<Map<String, dynamic>> reports = [
-      {
-        'title': 'Large Pothole',
-        'location': '845 Market St, San Francisco, CA',
-        'severity': 'High',
-        'severityColor': Colors.orange,
-        'status': 'Verified',
-        'statusColor': const Color(0xFF22C55E),
-        'xp': '+150 XP',
-        'date': '31/03/2026 at 11:30',
-        'hasImage': false,
-      },
-      {
-        'title': 'Cracked Pavement',
-        'location': '1234 Mission St, San Francisco, CA',
-        'severity': 'Medium',
-        'severityColor': Colors.amber,
-        'status': 'In Progress',
-        'statusColor': const Color(0xFF3B82F6),
-        'xp': '+100 XP',
-        'date': '30/03/2026 at 15:15',
-        'hasImage': false,
-      },
-      {
-        'title': 'Surface Crack',
-        'location': '456 Howard St, San Francisco, CA',
-        'severity': 'Low',
-        'severityColor': Colors.green,
-        'status': 'Pending',
-        'statusColor': const Color(0xFF64748B),
-        'xp': '+75 XP',
-        'date': '29/03/2026 at 09:45',
-        'imageUrl':
-            'https://images.unsplash.com/photo-1596464716127-f2a82984de30',
-        'hasImage': true,
-      },
-    ];
+    final total = _reports.length;
+    final verified = _reports
+        .where((report) => report.status == ReportStatus.verified)
+        .length;
+    final resolved = _reports
+        .where((report) => report.status == ReportStatus.resolved)
+        .length;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const _HeaderSection(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 8),
-                  const _StatsSummaryRow(),
-                  const SizedBox(height: 32),
-                  ...reports
-                      .map(
-                        (report) => Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: _ReportCard(
-                            title: report['title'],
-                            location: report['location'],
-                            severity: report['severity'],
-                            severityColor: report['severityColor'],
-                            status: report['status'],
-                            statusColor: report['statusColor'],
-                            xp: report['xp'],
-                            date: report['date'],
-                            imageUrl: report['imageUrl'],
-                            hasImage: report['hasImage'],
+      body: RefreshIndicator(
+        onRefresh: _loadReports,
+        child: SingleChildScrollView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          child: Column(
+            children: [
+              const _HeaderSection(),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 8),
+                    _StatsSummaryRow(
+                      total: total,
+                      verified: verified,
+                      resolved: resolved,
+                    ),
+                    const SizedBox(height: 32),
+                    if (_isLoading)
+                      const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: CircularProgressIndicator(),
+                      )
+                    else if (_error != null)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        child: Column(
+                          children: [
+                            Text(
+                              'Failed to load your reports.',
+                              style: GoogleFonts.outfit(
+                                color: const Color(0xFF64748B),
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextButton(
+                              onPressed: _loadReports,
+                              child: const Text('Retry'),
+                            ),
+                          ],
+                        ),
+                      )
+                    else if (_reports.isEmpty)
+                      Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        child: Text(
+                          'You have not submitted any reports yet.',
+                          style: GoogleFonts.outfit(
+                            color: const Color(0xFF64748B),
+                            fontSize: 14,
                           ),
                         ),
                       )
-                      .toList(),
-                  const SizedBox(height: 40),
-                ],
+                    else
+                      ..._reports.map(
+                        (report) => Padding(
+                          padding: const EdgeInsets.only(bottom: 20),
+                          child: _ReportCard(
+                            title: _damageLabel(report.damageType),
+                            location: _locationLabel(report),
+                            severity: _severityLabel(report.severity),
+                            severityColor: _severityColor(report.severity),
+                            status: _statusLabel(report.status),
+                            statusColor: _statusColor(report.status),
+                            statusIcon: _statusIcon(report.status),
+                            score: 'Score ${report.voteScore}',
+                            date: _formatDate(report.createdAt),
+                            imageUrl: report.imageUrl,
+                          ),
+                        ),
+                      ),
+                    const SizedBox(height: 40),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -155,16 +309,24 @@ class _HeaderSection extends StatelessWidget {
 }
 
 class _StatsSummaryRow extends StatelessWidget {
-  const _StatsSummaryRow();
+  final int total;
+  final int verified;
+  final int resolved;
+
+  const _StatsSummaryRow({
+    required this.total,
+    required this.verified,
+    required this.resolved,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        _buildStatCard('3', 'Total'),
-        _buildStatCard('1', 'Verified'),
-        _buildStatCard('0', 'Resolved'),
+        _buildStatCard('$total', 'Total'),
+        _buildStatCard('$verified', 'Verified'),
+        _buildStatCard('$resolved', 'Resolved'),
       ],
     );
   }
@@ -216,10 +378,10 @@ class _ReportCard extends StatelessWidget {
   final Color severityColor;
   final String status;
   final Color statusColor;
-  final String xp;
+  final IconData statusIcon;
+  final String score;
   final String date;
   final String? imageUrl;
-  final bool hasImage;
 
   const _ReportCard({
     required this.title,
@@ -228,10 +390,10 @@ class _ReportCard extends StatelessWidget {
     required this.severityColor,
     required this.status,
     required this.statusColor,
-    required this.xp,
+    required this.statusIcon,
+    required this.score,
     required this.date,
     this.imageUrl,
-    this.hasImage = false,
   });
 
   @override
@@ -263,8 +425,19 @@ class _ReportCard extends StatelessWidget {
                   border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
                 ),
                 clipBehavior: Clip.antiAlias,
-                child: hasImage
-                    ? Image.network(imageUrl!, fit: BoxFit.cover)
+                child: imageUrl != null && imageUrl!.isNotEmpty
+                    ? Image.network(
+                        imageUrl!,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            const Center(
+                              child: Icon(
+                                Icons.help_center_outlined,
+                                color: Color(0xFF94A3B8),
+                                size: 32,
+                              ),
+                            ),
+                      )
                     : const Center(
                         child: Icon(
                           Icons.help_center_outlined,
@@ -349,24 +522,7 @@ class _ReportCard extends StatelessWidget {
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              if (status == 'Verified')
-                                const Icon(
-                                  Icons.check_circle_outline,
-                                  color: Color(0xFF22C55E),
-                                  size: 14,
-                                ),
-                              if (status == 'In Progress')
-                                const Icon(
-                                  Icons.access_time,
-                                  color: Color(0xFF3B82F6),
-                                  size: 14,
-                                ),
-                              if (status == 'Pending')
-                                const Icon(
-                                  Icons.help_outline,
-                                  color: Color(0xFF64748B),
-                                  size: 14,
-                                ),
+                              Icon(statusIcon, color: statusColor, size: 14),
                               const SizedBox(width: 4),
                               Text(
                                 status,
@@ -380,9 +536,9 @@ class _ReportCard extends StatelessWidget {
                           ),
                         ),
                         Text(
-                          xp,
+                          score,
                           style: GoogleFonts.outfit(
-                            color: const Color(0xFF22C55E),
+                            color: const Color(0xFF16A34A),
                             fontSize: 14,
                             fontWeight: FontWeight.bold,
                           ),
