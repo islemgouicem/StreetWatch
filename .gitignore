@@ -19,3 +19,8 @@ coverage/
 .DS_Store
 Thumbs.db
 .vscode/
+
+# Secrets
+.env
+.env.*
+!.env.example

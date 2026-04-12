@@ -1,10 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
+import 'package:mobile_app/features/Map/presentation/page/map.dart';
 import 'package:mobile_app/features/notifications/presentation/pages/notifications_screen.dart';
-import 'package:mobile_app/features/reporting/presentation/pages/detection_result_screen.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/camera_screen.dart';
+import 'package:mobile_app/bloc/index.dart';
+import 'package:mobile_app/models/index.dart';
+import 'package:mobile_app/services/api_service.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -13,260 +20,377 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: SingleChildScrollView(
-        child: Column(
-          children: [
-            const _HeaderSection(),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 0),
-                  const _ReportDamageAction(),
-                  const SizedBox(height: 24),
-                  const _QuickStatsRow(),
-                  const SizedBox(height: 32),
-                  const _DailyMissionsSection(),
-                  const SizedBox(height: 32),
-                  const _NearbyIssuesSection(),
-                  const SizedBox(height: 40),
-                ],
-              ),
+      body: BlocBuilder<AuthBloc, AuthState>(
+        builder: (context, state) {
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                _HeaderSection(state: state),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Column(
+                    children: [
+                      const SizedBox(height: 24),
+                      const _ReportDamageAction(),
+                      const SizedBox(height: 24),
+                      _QuickStatsRow(state: state),
+                      const SizedBox(height: 32),
+                      _DailyMissionsSection(state: state),
+                      const SizedBox(height: 32),
+                      const _NearbyIssuesSection(),
+                      const SizedBox(height: 40),
+                    ],
+                  ),
+                ),
+              ],
             ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
 }
 
-class _HeaderSection extends StatelessWidget {
-  const _HeaderSection();
+class _HeaderSection extends StatefulWidget {
+  final AuthState state;
+  const _HeaderSection({required this.state});
+
+  @override
+  State<_HeaderSection> createState() => _HeaderSectionState();
+}
+
+class _HeaderSectionState extends State<_HeaderSection> {
+  late final ApiService _apiService;
+  int? _rank;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(Supabase.instance.client);
+    // Fetch user data when screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      context.read<AuthBloc>().add(const AuthFetchCurrentUserEvent());
+      _loadRank();
+    });
+  }
+
+  @override
+  void didUpdateWidget(covariant _HeaderSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldId = oldWidget.state is AuthSuccess
+        ? (oldWidget.state as AuthSuccess).user.id
+        : null;
+    final newId = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user.id
+        : null;
+    if (newId != null && newId != oldId) {
+      _loadRank();
+    }
+  }
+
+  Future<void> _loadRank() async {
+    if (widget.state is! AuthSuccess) {
+      return;
+    }
+    final userId = (widget.state as AuthSuccess).user.id;
+    try {
+      final entries = await _apiService.getLeaderboard(limit: 100);
+      int? rank;
+      for (final entry in entries) {
+        if (entry.userId == userId) {
+          rank = entry.rank;
+          break;
+        }
+      }
+      if (mounted) {
+        setState(() => _rank = rank);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _rank = null);
+      }
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user
+        : null;
+    final points = user?.points ?? 0;
+    final level = (points ~/ 500) + 1;
+    final xpInLevel = points % 500;
+    const xpToNextLevel = 500;
+    final xpRemaining = xpToNextLevel - xpInLevel;
+
     return Stack(
       children: [
-        // Curved background
-        ClipPath(
-          clipper: _HeaderClipper(),
-          child: Container(
-            height: 340,
-            decoration: const BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topCenter,
-                end: Alignment.bottomCenter,
-                colors: [AppTheme.primaryBlue, AppTheme.accentBlue],
-              ),
+        Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6)],
             ),
+            borderRadius: const BorderRadius.only(
+              bottomLeft: Radius.circular(32),
+              bottomRight: Radius.circular(32),
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.blue.withValues(alpha: 0.25),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-        ),
-
-        // Content
-        Padding(
-          padding: const EdgeInsets.only(top: 60, left: 24, right: 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+          child: Stack(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Welcome back,',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white.withOpacity(0.8),
-                          fontSize: 14, // Reduced from 16
-                          fontWeight: FontWeight.w400,
-                        ),
-                      ),
-                      Text(
-                        'Alex Rivera',
-                        style: GoogleFonts.outfit(
-                          color: Colors.white,
-                          fontSize: 24, // Reduced from 28
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
+              Positioned(
+                top: -110,
+                right: -110,
+                child: Container(
+                  width: 260,
+                  height: 260,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.12),
+                    shape: BoxShape.circle,
                   ),
-                  GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const NotificationsScreen(),
-                        ),
-                      );
-                    },
-                    child: Stack(
+                ),
+              ),
+              Positioned(
+                bottom: -75,
+                left: -70,
+                child: Container(
+                  width: 220,
+                  height: 220,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.10),
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              ),
+              Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 56, 24, 32),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(10), // Reduced from 10
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.notifications_none,
-                            color: Colors.white,
-                            size: 24, // Reduced from 28
-                          ),
-                        ),
-                        Positioned(
-                          top: 0,
-                          right: 0,
-                          child: Container(
-                            padding: const EdgeInsets.all(5),
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFF97316),
-                              shape: BoxShape.circle,
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Welcome back,',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white.withValues(alpha: 0.8),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                                Text(
+                                  user?.fullName ?? user?.username ?? 'User',
+                                  style: GoogleFonts.outfit(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ],
                             ),
-                            child: Text(
-                              '3',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontSize: 10, // Reduced from 10
-                                fontWeight: FontWeight.bold,
+                            GestureDetector(
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const NotificationsScreen(),
+                                  ),
+                                );
+                              },
+                              child: Stack(
+                                children: [
+                                  Container(
+                                    width: 44,
+                                    height: 44,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white.withValues(
+                                        alpha: 0.2,
+                                      ),
+                                      shape: BoxShape.circle,
+                                    ),
+                                    child: const Center(
+                                      child: Icon(
+                                        Icons.notifications_none,
+                                        color: Colors.white,
+                                        size: 20,
+                                      ),
+                                    ),
+                                  ),
+                                  Positioned(
+                                    top: -4,
+                                    right: -4,
+                                    child: Container(
+                                      width: 20,
+                                      height: 20,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFFF97316),
+                                        shape: BoxShape.circle,
+                                        border: Border.all(
+                                          color: const Color(0xFF1E3A8A),
+                                          width: 2,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: Text(
+                                          '3',
+                                          style: GoogleFonts.outfit(
+                                            color: Colors.white,
+                                            fontSize: 9,
+                                            fontWeight: FontWeight.bold,
+                                          ),
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
+                          ],
+                        ),
+                        const SizedBox(height: 24),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withValues(alpha: 0.10),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: Colors.white.withValues(alpha: 0.20),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            children: [
+                              Row(
+                                mainAxisAlignment:
+                                    MainAxisAlignment.spaceBetween,
+                                children: [
+                                  Row(
+                                    children: [
+                                      Container(
+                                        width: 48,
+                                        height: 48,
+                                        decoration: const BoxDecoration(
+                                          shape: BoxShape.circle,
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topLeft,
+                                            end: Alignment.bottomRight,
+                                            colors: [
+                                              Color(0xFF10B981),
+                                              Color(0xFF84CC16),
+                                            ],
+                                          ),
+                                        ),
+                                        child: Center(
+                                          child: Text(
+                                            '$level',
+                                            style: GoogleFonts.outfit(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.w900,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      const SizedBox(width: 12),
+                                      Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            'Current Level',
+                                            style: GoogleFonts.outfit(
+                                              color: Colors.white.withValues(
+                                                alpha: 0.8,
+                                              ),
+                                              fontSize: 12,
+                                            ),
+                                          ),
+                                          Text(
+                                            'Level $level',
+                                            style: GoogleFonts.outfit(
+                                              color: Colors.white,
+                                              fontSize: 18,
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.end,
+                                    children: [
+                                      Text(
+                                        'Rank',
+                                        style: GoogleFonts.outfit(
+                                          color: Colors.white.withValues(
+                                            alpha: 0.8,
+                                          ),
+                                          fontSize: 12,
+                                        ),
+                                      ),
+                                      Text(
+                                        _rank != null ? '#$_rank' : '#--',
+                                        style: GoogleFonts.outfit(
+                                          color: Colors.white,
+                                          fontSize: 22,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              LinearPercentIndicator(
+                                padding: EdgeInsets.zero,
+                                lineHeight: 8,
+                                percent: (xpInLevel / xpToNextLevel).clamp(
+                                  0.0,
+                                  1.0,
+                                ),
+                                animation: true,
+                                animationDuration: 900,
+                                barRadius: const Radius.circular(99),
+                                linearGradient: const LinearGradient(
+                                  colors: [
+                                    Color(0xFF3B82F6),
+                                    Color(0xFF60A5FA),
+                                  ],
+                                ),
+                                backgroundColor: const Color(0xFFF1F5F9),
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                '$xpRemaining XP to Level ${level + 1}',
+                                textAlign: TextAlign.center,
+                                style: GoogleFonts.outfit(
+                                  color: Colors.white.withValues(alpha: 0.7),
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w500,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
                       ],
                     ),
                   ),
                 ],
-              ),
-              const SizedBox(height: 26), // Reduced from 32
-              // Level Card
-              Container(
-                padding: const EdgeInsets.all(16), // Reduced from 20
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.12),
-                  borderRadius: BorderRadius.circular(24), // Reduced from 28
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.15),
-                    width: 1,
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            // Level Circle
-                            Container(
-                              width: 44, // Reduced from 52
-                              height: 44,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                gradient: LinearGradient(
-                                  begin: Alignment.topCenter,
-                                  end: Alignment.bottomCenter,
-                                  colors: [
-                                    AppTheme.xpGradientStart,
-                                    AppTheme.xpGradientEnd,
-                                  ],
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black12,
-                                    blurRadius: 6,
-                                    offset: Offset(0, 3),
-                                  ),
-                                ],
-                              ),
-                              child: Center(
-                                child: Text(
-                                  '12',
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontSize: 16, // Reduced from 20
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Current Level',
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white.withOpacity(0.7),
-                                    fontSize: 13, // Reduced from 14
-                                    fontWeight: FontWeight.w400,
-                                  ),
-                                ),
-                                Text(
-                                  'Level 12',
-                                  style: GoogleFonts.outfit(
-                                    color: Colors.white,
-                                    fontSize: 18, // Reduced from 20
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ],
-                        ),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.end,
-                          children: [
-                            Text(
-                              'Rank',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white.withOpacity(0.7),
-                                fontSize: 13, // Reduced from 14
-                                fontWeight: FontWeight.w400,
-                              ),
-                            ),
-                            Text(
-                              '#3',
-                              style: GoogleFonts.outfit(
-                                color: Colors.white,
-                                fontSize: 22, // Reduced from 24
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 20),
-                    // Animated Progress Bar with Gradient
-                    LinearPercentIndicator(
-                      padding: EdgeInsets.zero,
-                      lineHeight: 10.0,
-                      percent: 0.72,
-                      animation: true,
-                      animationDuration: 1200,
-                      barRadius: const Radius.circular(10),
-                      linearGradient: const LinearGradient(
-                        colors: [
-                          AppTheme.xpGradientStart,
-                          AppTheme.xpGradientEnd,
-                        ],
-                      ),
-                      backgroundColor: Colors.white.withOpacity(0.2),
-                    ),
-                    const SizedBox(height: 10),
-                    Text(
-                      '653 XP to Level 13',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white.withOpacity(0.8),
-                        fontSize: 12, // Reduced from 14
-                        fontWeight: FontWeight.w500,
-                        letterSpacing: 0.3,
-                      ),
-                    ),
-                  ],
-                ),
               ),
             ],
           ),
@@ -276,111 +400,205 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-class _HeaderClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.lineTo(0, size.height - 50);
-    path.quadraticBezierTo(
-      size.width / 2,
-      size.height,
-      size.width,
-      size.height - 50,
-    );
-    path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
+class _ReportDamageAction extends StatefulWidget {
+  const _ReportDamageAction();
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+  State<_ReportDamageAction> createState() => _ReportDamageActionState();
 }
 
-class _ReportDamageAction extends StatelessWidget {
-  const _ReportDamageAction();
+class _ReportDamageActionState extends State<_ReportDamageAction> {
+  bool _isPressed = false;
+
+  @override
+  void initState() {
+    super.initState();
+  }
 
   @override
   Widget build(BuildContext context) {
     return GestureDetector(
-      onTap: () {
+      onTapDown: (_) {
+        setState(() => _isPressed = true);
+      },
+      onTapUp: (_) {
+        setState(() => _isPressed = false);
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const DetectionResultScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const CameraScreen()),
         );
       },
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFFF97316), Color(0xFFFB923C)],
+      onTapCancel: () {
+        setState(() => _isPressed = false);
+      },
+      child: AnimatedScale(
+        duration: const Duration(milliseconds: 120),
+        curve: Curves.easeOut,
+        scale: _isPressed ? 0.95 : 1,
+        child: Container(
+          clipBehavior: Clip.antiAlias,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFFF97316), Color(0xFFFB923C)],
+            ),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.orange.withValues(alpha: 0.35),
+                blurRadius: 18,
+                offset: const Offset(0, 8),
+              ),
+            ],
           ),
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.orange.withOpacity(0.3),
-              blurRadius: 15,
-              offset: const Offset(0, 8),
-            ),
-          ],
-        ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Report Damage',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white,
-                    fontSize: 22,
-                    fontWeight: FontWeight.bold,
+          child: Stack(
+            children: [
+              Positioned(
+                top: -64,
+                right: -64,
+                child: Container(
+                  width: 128,
+                  height: 128,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.10),
                   ),
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Spot an issue? Capture it now!',
-                  style: GoogleFonts.outfit(
-                    color: Colors.white.withOpacity(0.9),
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
+              ),
+              Positioned(
+                bottom: -48,
+                left: -48,
+                child: Container(
+                  width: 96,
+                  height: 96,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white.withValues(alpha: 0.10),
                   ),
                 ),
-              ],
-            ),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                shape: BoxShape.circle,
               ),
-              child: const Icon(
-                Icons.camera_alt,
-                color: Color(0xFFF97316),
-                size: 28,
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Report Damage',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Spot an issue? Capture it now!',
+                          style: GoogleFonts.outfit(
+                            color: Colors.white.withValues(alpha: 0.9),
+                            fontSize: 14,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Container(
+                      width: 56,
+                      height: 56,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.15),
+                            blurRadius: 12,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: const Icon(
+                        Icons.camera_alt,
+                        color: Color(0xFFF97316),
+                        size: 28,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _QuickStatsRow extends StatelessWidget {
-  const _QuickStatsRow();
+class _QuickStatsRow extends StatefulWidget {
+  final AuthState state;
+  const _QuickStatsRow({required this.state});
+
+  @override
+  State<_QuickStatsRow> createState() => _QuickStatsRowState();
+}
+
+class _QuickStatsRowState extends State<_QuickStatsRow> {
+  late final ApiService _apiService;
+  UserStats? _stats;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(Supabase.instance.client);
+    _loadStats();
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuickStatsRow oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final oldId = oldWidget.state is AuthSuccess
+        ? (oldWidget.state as AuthSuccess).user.id
+        : null;
+    final newId = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user.id
+        : null;
+    if (newId != null && newId != oldId) {
+      _loadStats();
+    }
+  }
+
+  Future<void> _loadStats() async {
+    if (widget.state is! AuthSuccess) return;
+    final userId = (widget.state as AuthSuccess).user.id;
+    try {
+      final stats = await _apiService.getUserStats(userId);
+      if (!mounted) return;
+      setState(() => _stats = stats);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _stats = null);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user
+        : null;
+
+    final reportsCount = _stats?.reportsCount ?? user?.totalReports ?? 0;
+    final points = _stats?.points ?? user?.points ?? 0;
+    final badgesCount = _stats?.badgesCount ?? 0;
+
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
         Expanded(
           child: _StatCard(
             icon: Icons.my_location,
-            value: '87',
+            value: '$reportsCount',
             label: 'Reports',
             iconColor: Colors.blue,
           ),
@@ -389,7 +607,7 @@ class _QuickStatsRow extends StatelessWidget {
         Expanded(
           child: _StatCard(
             icon: Icons.bolt,
-            value: '2847',
+            value: '$points',
             label: 'Total XP',
             iconColor: Colors.green,
           ),
@@ -398,7 +616,7 @@ class _QuickStatsRow extends StatelessWidget {
         Expanded(
           child: _StatCard(
             icon: Icons.trending_up,
-            value: '6',
+            value: '$badgesCount',
             label: 'Badges',
             iconColor: Colors.orange,
           ),
@@ -486,10 +704,28 @@ class _StatCard extends StatelessWidget {
 }
 
 class _DailyMissionsSection extends StatelessWidget {
-  const _DailyMissionsSection();
+  final AuthState state;
+
+  const _DailyMissionsSection({required this.state});
 
   @override
   Widget build(BuildContext context) {
+    final user = state is AuthSuccess ? (state as AuthSuccess).user : null;
+    final totalReports = user?.totalReports ?? 0;
+    final verifiedReports = user?.verifiedReports ?? 0;
+
+    const missionOneTarget = 3;
+    final missionOneProgress = totalReports % missionOneTarget;
+    final missionOnePercent = (missionOneProgress / missionOneTarget)
+        .clamp(0.0, 1.0)
+        .toDouble();
+
+    const missionTwoTarget = 5;
+    final missionTwoProgress = verifiedReports % missionTwoTarget;
+    final missionTwoPercent = (missionTwoProgress / missionTwoTarget)
+        .clamp(0.0, 1.0)
+        .toDouble();
+
     return Column(
       children: [
         Row(
@@ -523,19 +759,19 @@ class _DailyMissionsSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const _MissionCard(
+        _MissionCard(
           title: 'Daily Scout',
-          description: 'Report 3 issues today',
-          progress: '2/3',
-          percent: 0.66,
+          description: 'Submit 3 reports to complete today\'s mission',
+          progress: '$missionOneProgress/$missionOneTarget',
+          percent: missionOnePercent,
           reward: '+200 XP',
         ),
         const SizedBox(height: 16),
-        const _MissionCard(
-          title: 'Explorer',
-          description: 'Report issues in 3 different neighborhoods',
-          progress: '2/3',
-          percent: 0.66,
+        _MissionCard(
+          title: 'Quality Reporter',
+          description: 'Reach 5 verified reports for this cycle',
+          progress: '$missionTwoProgress/$missionTwoTarget',
+          percent: missionTwoPercent,
           reward: '+350 XP',
         ),
       ],
@@ -638,8 +874,117 @@ class _MissionCard extends StatelessWidget {
   }
 }
 
-class _NearbyIssuesSection extends StatelessWidget {
+class _NearbyIssuesSection extends StatefulWidget {
   const _NearbyIssuesSection();
+
+  @override
+  State<_NearbyIssuesSection> createState() => _NearbyIssuesSectionState();
+}
+
+class _NearbyIssuesSectionState extends State<_NearbyIssuesSection> {
+  late final ApiService _apiService;
+  bool _isLoading = true;
+  String? _error;
+  List<Report> _reports = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(Supabase.instance.client);
+    _loadNearby();
+  }
+
+  Future<void> _loadNearby() async {
+    setState(() {
+      _isLoading = true;
+      _error = null;
+    });
+    try {
+      final position = await _getCurrentPosition();
+      final reports = await _apiService.getNearbyReports(
+        latitude: position.latitude,
+        longitude: position.longitude,
+        radiusKm: 5.0,
+      );
+      if (!mounted) return;
+      setState(() {
+        _reports = reports.take(3).toList();
+        _isLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = e.toString();
+        _isLoading = false;
+      });
+    }
+  }
+
+  Future<Position> _getCurrentPosition() async {
+    final serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      throw Exception('Location services are disabled');
+    }
+
+    var permission = await Geolocator.checkPermission();
+    if (permission == LocationPermission.denied) {
+      permission = await Geolocator.requestPermission();
+    }
+
+    if (permission == LocationPermission.denied ||
+        permission == LocationPermission.deniedForever) {
+      throw Exception('Location permission denied');
+    }
+
+    return Geolocator.getCurrentPosition(
+      desiredAccuracy: LocationAccuracy.high,
+    );
+  }
+
+  Color _severityColor(Severity severity) {
+    switch (severity) {
+      case Severity.high:
+        return Colors.orange;
+      case Severity.medium:
+        return Colors.yellow.shade700;
+      case Severity.low:
+        return Colors.green;
+    }
+  }
+
+  String _severityLabel(Severity severity) {
+    switch (severity) {
+      case Severity.high:
+        return 'High';
+      case Severity.medium:
+        return 'Medium';
+      case Severity.low:
+        return 'Low';
+    }
+  }
+
+  String _damageLabel(DamageType damageType) {
+    switch (damageType) {
+      case DamageType.pothole:
+        return 'Pothole';
+      case DamageType.crack:
+        return 'Cracked Pavement';
+      case DamageType.flooding:
+        return 'Flooding';
+      case DamageType.debris:
+        return 'Road Debris';
+      case DamageType.other:
+        return 'Infrastructure Issue';
+    }
+  }
+
+  String _locationLabel(Report report) {
+    if (report.distanceMeters != null) {
+      final km = report.distanceMeters! / 1000;
+      return '${km.toStringAsFixed(1)} km away';
+    }
+    return '${report.latitude.toStringAsFixed(5)}, ${report.longitude.toStringAsFixed(5)}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -657,7 +1002,12 @@ class _NearbyIssuesSection extends StatelessWidget {
               ),
             ),
             TextButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => MapPage()),
+                );
+              },
               child: Text(
                 'View Map',
                 style: GoogleFonts.outfit(
@@ -669,29 +1019,56 @@ class _NearbyIssuesSection extends StatelessWidget {
           ],
         ),
         const SizedBox(height: 12),
-        const _IssueCard(
-          title: 'Large Pothole',
-          location: '845 Market St, San Francisco, CA',
-          severity: 'High',
-          severityColor: Colors.orange,
-          showPlaceholder: true,
-        ),
-        const SizedBox(height: 16),
-        const _IssueCard(
-          title: 'Cracked Pavement',
-          location: '1234 Mission St, San Francisco, CA',
-          severity: 'Medium',
-          severityColor: Colors.yellow,
-          showPlaceholder: true,
-        ),
-        _IssueCard(
-          title: 'Damaged Sign',
-          location: '567 Valencia St, San Francisco, CA',
-          severity: 'Low',
-          severityColor: Colors.green.shade400,
-          imageUrl:
-              'https://images.unsplash.com/photo-1596464716127-f2a82984de30',
-        ),
+        if (_isLoading)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 20),
+            child: CircularProgressIndicator(),
+          )
+        else if (_error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Column(
+              children: [
+                Text(
+                  'Failed to load nearby issues.',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFF64748B),
+                    fontSize: 14,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                TextButton(onPressed: _loadNearby, child: const Text('Retry')),
+              ],
+            ),
+          )
+        else if (_reports.isEmpty)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Text(
+              'No nearby issues found yet.',
+              style: GoogleFonts.outfit(
+                color: const Color(0xFF64748B),
+                fontSize: 14,
+              ),
+            ),
+          )
+        else
+          ..._reports.asMap().entries.map((entry) {
+            final index = entry.key;
+            final report = entry.value;
+            return Padding(
+              padding: EdgeInsets.only(
+                bottom: index == _reports.length - 1 ? 0 : 16,
+              ),
+              child: _IssueCard(
+                title: _damageLabel(report.damageType),
+                location: _locationLabel(report),
+                severity: _severityLabel(report.severity),
+                severityColor: _severityColor(report.severity),
+                imageUrl: report.imageUrl,
+              ),
+            );
+          }),
       ],
     );
   }
@@ -703,7 +1080,6 @@ class _IssueCard extends StatelessWidget {
   final String severity;
   final Color severityColor;
   final String? imageUrl;
-  final bool showPlaceholder;
 
   const _IssueCard({
     required this.title,
@@ -711,7 +1087,6 @@ class _IssueCard extends StatelessWidget {
     required this.severity,
     required this.severityColor,
     this.imageUrl,
-    this.showPlaceholder = false,
   });
 
   @override
@@ -740,9 +1115,9 @@ class _IssueCard extends StatelessWidget {
               color: const Color(0xFFF8FAFC),
             ),
             clipBehavior: Clip.antiAlias,
-            child: showPlaceholder
+            child: imageUrl == null || imageUrl!.isEmpty
                 ? const Icon(
-                    Icons.help_center_outlined,
+                    Icons.image_not_supported,
                     color: Color(0xFF94A3B8),
                     size: 32,
                   )
