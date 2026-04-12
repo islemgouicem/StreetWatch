@@ -1,4 +1,4 @@
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, SocketException;
 import 'package:supabase_flutter/supabase_flutter.dart' hide User;
 import 'package:http/http.dart' as http;
 import 'dart:convert';
@@ -445,13 +445,32 @@ class ApiService {
             index,
           );
         }).toList();
+      } else if (response.statusCode == 404) {
+        throw ApiException(
+          'Leaderboard endpoint is not available on the backend.',
+          statusCode: response.statusCode,
+        );
+      } else if (response.statusCode >= 500) {
+        throw ApiException(
+          'Leaderboard service failed on the backend. Check backend setup and server logs.',
+          statusCode: response.statusCode,
+        );
       } else {
         throw ApiException(
-          'Failed to fetch leaderboard',
+          'Leaderboard request failed.',
           statusCode: response.statusCode,
         );
       }
+    } on SocketException {
+      throw ApiException(
+        'Unable to reach the backend server. Make sure it is running and reachable from the app.',
+      );
+    } on http.ClientException {
+      throw ApiException(
+        'Unable to contact the leaderboard service. Verify the backend URL and try again.',
+      );
     } catch (e) {
+      if (e is ApiException) rethrow;
       throw ApiException('Failed to get leaderboard: $e');
     }
   }

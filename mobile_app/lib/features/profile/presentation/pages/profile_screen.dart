@@ -6,6 +6,7 @@ import 'package:mobile_app/features/achievements/presentation/pages/missions_scr
 import 'package:mobile_app/features/reporting/presentation/pages/my_reports_screen.dart';
 import 'package:mobile_app/features/settings/presentation/pages/settings_screen.dart';
 import 'package:mobile_app/bloc/index.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide AuthState;
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -15,6 +16,22 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  String _fallbackDisplayName() {
+    final currentUser = Supabase.instance.client.auth.currentUser;
+    final metadata = currentUser?.userMetadata;
+    final fullName = (metadata?['full_name'] as String?)?.trim();
+    if (fullName != null && fullName.isNotEmpty) {
+      return fullName;
+    }
+
+    final email = currentUser?.email?.trim();
+    if (email != null && email.isNotEmpty) {
+      return email.split('@').first;
+    }
+
+    return 'Citizen';
+  }
+
   @override
   void initState() {
     super.initState();
@@ -89,8 +106,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ? state.user.verifiedReports
               : 0;
           final username = state is AuthSuccess
-              ? (state.user.fullName ?? state.user.username ?? 'Citizen')
-              : 'Citizen';
+              ? (state.user.fullName?.trim().isNotEmpty == true
+                    ? state.user.fullName!.trim()
+                    : state.user.username?.trim().isNotEmpty == true
+                    ? state.user.username!.trim()
+                    : _fallbackDisplayName())
+              : _fallbackDisplayName();
           final avatarUrl = state is AuthSuccess ? state.user.avatarUrl : null;
           final createdAt = state is AuthSuccess
               ? state.user.createdAt
@@ -125,7 +146,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 Padding(
                   padding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
                   child: Transform.translate(
-                    offset: const Offset(0, -40),
+                    offset: const Offset(0, -20),
                     child: _StatsCard(
                       totalReports: totalReports,
                       totalXp: points,
@@ -232,8 +253,8 @@ class _HeaderSection extends StatelessWidget {
     final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
 
     return Container(
-      height: 350,
       width: double.infinity,
+      constraints: const BoxConstraints(minHeight: 350),
       decoration: const BoxDecoration(
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(36)),
         gradient: LinearGradient(
