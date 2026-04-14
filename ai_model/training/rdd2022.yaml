@@ -1,0 +1,8 @@
+# training/dataset/rdd2022/rdd2022.yaml
+path: ../dataset
+train: train/images
+val: val/images
+test: test/images
+
+nc: 5  # number of classes
+names: ['longitudinal_crack', 'transverse_crack', 'alligator_crack', 'pothole', 'broken_sign']
