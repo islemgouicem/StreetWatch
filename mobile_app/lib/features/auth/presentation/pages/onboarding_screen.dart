@@ -19,21 +19,21 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
       description:
           'Take photos of potholes, cracks, and damaged infrastructure in your neighborhood',
       icon: Icons.camera_alt_outlined,
-      iconBg: Color(0xFF2F58C0),
+      iconBg: Color(0xFF1E3A8A),
     ),
     _OnboardingItem(
       title: 'Build the Map',
       description:
           'Your reports create a real-time infrastructure map to help your community',
       icon: Icons.location_on_outlined,
-      iconBg: Color(0xFFFF8A23),
+      iconBg: Color(0xFFF97316),
     ),
     _OnboardingItem(
       title: 'Earn Rewards',
       description:
           'Gain XP, unlock badges, climb the leaderboard and become a civic hero',
       icon: Icons.emoji_events_outlined,
-      iconBg: Color(0xFF57CC71),
+      iconBg: Color(0xFF10B981),
     ),
   ];
 
@@ -69,7 +69,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [Color(0xFF274AA2), Color(0xFF3F82F2), Color(0xFF10B981)],
+            colors: [Color(0xFF1E3A8A), Color(0xFF3B82F6), Color(0xFF10B981)],
           ),
         ),
         child: SafeArea(
@@ -78,7 +78,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 8),
               Text(
                 'StreetWatch',
-                  style: GoogleFonts.inter(
+                style: GoogleFonts.inter(
                   color: Colors.white,
                   fontSize: 40,
                   fontWeight: FontWeight.w900,
@@ -87,7 +87,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 6),
               Text(
                 'Your City. Your Mission.',
-                  style: GoogleFonts.inter(
+                style: GoogleFonts.inter(
                   color: Colors.white.withValues(alpha: 0.9),
                   fontSize: 14,
                   fontWeight: FontWeight.w600,
@@ -119,9 +119,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(18),
                       ),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      minimumSize: const Size.fromHeight(60),
+                      padding: const EdgeInsets.symmetric(vertical: 20),
                       textStyle: GoogleFonts.inter(
-                        fontSize: 16,
+                        fontSize: 18,
                         fontWeight: FontWeight.w700,
                       ),
                     ),
@@ -182,8 +183,8 @@ class _OnboardingPage extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Container(
-                  width: compact ? 100 : 128,
-                  height: compact ? 100 : 128,
+                  width: compact ? 104 : 128,
+                  height: compact ? 104 : 128,
                   decoration: BoxDecoration(
                     color: item.iconBg,
                     shape: BoxShape.circle,
@@ -198,16 +199,16 @@ class _OnboardingPage extends StatelessWidget {
                   child: Icon(
                     item.icon,
                     color: Colors.white,
-                    size: compact ? 44 : 56,
+                    size: compact ? 46 : 56,
                   ),
                 ),
                 SizedBox(height: compact ? 20 : 32),
                 Text(
                   item.title,
                   textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
+                  style: GoogleFonts.inter(
                     color: Colors.white,
-                    fontSize: compact ? 30 : 34,
+                    fontSize: compact ? 32 : 34,
                     fontWeight: FontWeight.w800,
                   ),
                 ),
@@ -215,9 +216,9 @@ class _OnboardingPage extends StatelessWidget {
                 Text(
                   item.description,
                   textAlign: TextAlign.center,
-                    style: GoogleFonts.inter(
+                  style: GoogleFonts.inter(
                     color: Colors.white.withValues(alpha: 0.93),
-                    fontSize: compact ? 16 : 18,
+                    fontSize: compact ? 17 : 18,
                     fontWeight: FontWeight.w400,
                     height: 1.4,
                   ),
@@ -245,7 +246,7 @@ class _DotIndicator extends StatelessWidget {
         final isActive = dotIndex == index;
         return AnimatedContainer(
           duration: const Duration(milliseconds: 220),
-          width: isActive ? 28 : 8,
+          width: isActive ? 32 : 8,
           height: 8,
           margin: const EdgeInsets.symmetric(horizontal: 4),
           decoration: BoxDecoration(
