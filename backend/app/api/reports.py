@@ -6,8 +6,16 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_current_admin, get_current_user
-from app.schemas.enums import ReportStatus
-from app.schemas.report import NearbyReportRead, ReportCreate, ReportRead, ReportUpdate, ReportVoteRequest
+from app.schemas.enums import DamageType, ReportStatus, Severity
+from app.schemas.report import (
+    NearbyReportRead,
+    ReportCreate,
+    ReportRead,
+    ReportStatsCount,
+    ReportStatsRead,
+    ReportUpdate,
+    ReportVoteRequest,
+)
 from app.services.supabase_client import get_supabase_service_client
 
 
@@ -23,10 +31,55 @@ def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     return earth_radius_km * c
 
 
-def _to_report_read(row: dict[str, Any]) -> ReportRead:
+def _build_vote_summary(vote_rows: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    summary: dict[str, dict[str, int]] = {}
+    for vote in vote_rows:
+        report_id = str(vote["report_id"])
+        report_summary = summary.setdefault(report_id, {"upvotes": 0, "downvotes": 0})
+        value = int(vote.get("value") or 0)
+        if value > 0:
+            report_summary["upvotes"] += 1
+        elif value < 0:
+            report_summary["downvotes"] += 1
+    return summary
+
+
+def _load_related_maps(rows: list[dict[str, Any]]) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, int]]]:
+    if not rows:
+        return {}, {}
+
+    db = get_supabase_service_client()
+    user_ids = sorted({str(row["user_id"]) for row in rows if row.get("user_id")})
+    report_ids = sorted({str(row["id"]) for row in rows if row.get("id")})
+
+    users_map: dict[str, dict[str, Any]] = {}
+    if user_ids:
+        user_rows = db.table("users").select("id,username,avatar_url,points").in_("id", user_ids).execute().data or []
+        users_map = {str(user["id"]): user for user in user_rows}
+
+    votes_map: dict[str, dict[str, int]] = {}
+    if report_ids:
+        vote_rows = db.table("votes").select("report_id,value").in_("report_id", report_ids).execute().data or []
+        votes_map = _build_vote_summary(vote_rows)
+
+    return users_map, votes_map
+
+
+def _to_report_read(
+    row: dict[str, Any],
+    users_map: dict[str, dict[str, Any]] | None = None,
+    votes_map: dict[str, dict[str, int]] | None = None,
+) -> ReportRead:
+    users_map = users_map or {}
+    votes_map = votes_map or {}
+    user = users_map.get(str(row["user_id"]), {})
+    vote_summary = votes_map.get(str(row["id"]), {})
     return ReportRead(
         id=row["id"],
         user_id=row["user_id"],
+        user_name=user.get("username") or "Anonymous",
+        user_avatar_url=user.get("avatar_url"),
+        user_points=int(user.get("points") or 0),
         image_url=row["image_url"],
         damage_type=row["damage_type"],
         severity=row["severity"],
@@ -35,6 +88,8 @@ def _to_report_read(row: dict[str, Any]) -> ReportRead:
         latitude=float(row["latitude"]),
         longitude=float(row["longitude"]),
         status=row["status"],
+        upvotes=int(vote_summary.get("upvotes") or 0),
+        downvotes=int(vote_summary.get("downvotes") or 0),
         verification_count=int(row.get("verification_count") or 0),
         created_at=row.get("created_at"),
         updated_at=row.get("updated_at"),
@@ -53,21 +108,111 @@ def _is_duplicate(payload: ReportCreate, candidate: dict[str, Any]) -> bool:
     return distance_km <= 0.03
 
 
+def _parse_pagination(
+    limit: int | None,
+    offset: int | None,
+    page: int | None,
+    page_size: int | None,
+) -> tuple[int, int]:
+    effective_limit = limit
+    effective_offset = offset
+
+    if effective_limit is None and page_size is not None:
+        effective_limit = page_size
+    if effective_offset is None and page is not None:
+        current_page = max(page, 1)
+        size = effective_limit or page_size or 50
+        effective_offset = (current_page - 1) * size
+
+    return effective_limit or 50, effective_offset or 0
+
+
+def _apply_report_filters(
+    query: Any,
+    *,
+    status_value: ReportStatus | None,
+    damage_type: DamageType | None,
+    severity: Severity | None,
+    user_id: UUID | None,
+    date_from: datetime | None,
+    date_to: datetime | None,
+) -> Any:
+    if status_value is None:
+        query = query.in_("status", ["verified", "rejected"])
+    else:
+        query = query.eq("status", status_value.value)
+
+    if damage_type is not None:
+        query = query.eq("damage_type", damage_type.value)
+    if severity is not None:
+        query = query.eq("severity", severity.value)
+    if user_id is not None:
+        query = query.eq("user_id", str(user_id))
+    if date_from is not None:
+        query = query.gte("created_at", date_from.isoformat())
+    if date_to is not None:
+        query = query.lte("created_at", date_to.isoformat())
+    return query
+
+
+def _filter_rows_by_bbox(rows: list[dict[str, Any]], bbox: str | None) -> list[dict[str, Any]]:
+    if not bbox:
+        return rows
+
+    try:
+        min_lon, min_lat, max_lon, max_lat = [float(part.strip()) for part in bbox.split(",")]
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="bbox must be minLon,minLat,maxLon,maxLat",
+        ) from exc
+
+    if min_lon > max_lon or min_lat > max_lat:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="bbox coordinates are invalid",
+        )
+
+    return [
+        row
+        for row in rows
+        if min_lat <= float(row["latitude"]) <= max_lat and min_lon <= float(row["longitude"]) <= max_lon
+    ]
+
+
 @router.get("", response_model=list[ReportRead])
 async def list_reports(
     status: ReportStatus | None = Query(default=None),
-    limit: int = Query(default=50, ge=1, le=200),
-    offset: int = Query(default=0, ge=0),
+    damage_type: DamageType | None = Query(default=None),
+    severity: Severity | None = Query(default=None),
+    user_id: UUID | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    bbox: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int | None = Query(default=None, ge=0),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=200),
 ) -> list[ReportRead]:
     db = get_supabase_service_client()
+    effective_limit, effective_offset = _parse_pagination(limit, offset, page, page_size)
     query = db.table("reports").select("*").order("created_at", desc=True)
-    if status is None:
-        query = query.in_("status", ["verified", "rejected"])
-    else:
-        query = query.eq("status", status.value)
+    query = _apply_report_filters(
+        query,
+        status_value=status,
+        damage_type=damage_type,
+        severity=severity,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
 
-    rows = query.range(offset, offset + limit - 1).execute().data or []
-    return [_to_report_read(row) for row in rows]
+    fetch_limit = effective_limit if not bbox else min(max(effective_offset + effective_limit, 200), 1000)
+    rows = query.range(0 if bbox else effective_offset, (fetch_limit - 1) if bbox else (effective_offset + effective_limit - 1)).execute().data or []
+    rows = _filter_rows_by_bbox(rows, bbox)
+    rows = rows[effective_offset : effective_offset + effective_limit] if bbox else rows
+    users_map, votes_map = _load_related_maps(rows)
+    return [_to_report_read(row, users_map, votes_map) for row in rows]
 
 
 @router.get("/nearby", response_model=list[NearbyReportRead])
@@ -88,6 +233,7 @@ async def list_nearby_reports(
         .data
         or []
     )
+    users_map, votes_map = _load_related_maps(rows)
 
     nearby: list[tuple[dict[str, Any], float]] = []
     for row in rows:
@@ -102,7 +248,10 @@ async def list_nearby_reports(
 
     nearby.sort(key=lambda item: item[1])
     return [
-        NearbyReportRead(**_to_report_read(row).model_dump(), distance_meters=distance_meters)
+        NearbyReportRead(
+            **_to_report_read(row, users_map, votes_map).model_dump(),
+            distance_meters=distance_meters,
+        )
         for row, distance_meters in nearby[:limit]
     ]
 
@@ -151,7 +300,57 @@ async def create_report(
     if not rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create report")
 
-    return _to_report_read(rows[0])
+    users_map, votes_map = _load_related_maps(rows)
+    return _to_report_read(rows[0], users_map, votes_map)
+
+
+@router.get("/stats", response_model=ReportStatsRead)
+async def get_report_stats(
+    status: ReportStatus | None = Query(default=None),
+    damage_type: DamageType | None = Query(default=None),
+    severity: Severity | None = Query(default=None),
+    user_id: UUID | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    bbox: str | None = Query(default=None),
+) -> ReportStatsRead:
+    db = get_supabase_service_client()
+    query = db.table("reports").select("*").order("created_at", desc=True).limit(1000)
+    query = _apply_report_filters(
+        query,
+        status_value=status,
+        damage_type=damage_type,
+        severity=severity,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+    rows = query.execute().data or []
+    rows = _filter_rows_by_bbox(rows, bbox)
+
+    status_counts = {report_status.value: 0 for report_status in ReportStatus}
+    damage_counts = {report_damage.value: 0 for report_damage in DamageType}
+    severity_counts = {report_severity.value: 0 for report_severity in Severity}
+
+    for row in rows:
+        status_counts[str(row["status"])] = status_counts.get(str(row["status"]), 0) + 1
+        damage_counts[str(row["damage_type"])] = damage_counts.get(str(row["damage_type"]), 0) + 1
+        severity_counts[str(row["severity"])] = severity_counts.get(str(row["severity"]), 0) + 1
+
+    return ReportStatsRead(
+        total_reports=len(rows),
+        pending_reports=status_counts.get(ReportStatus.pending.value, 0),
+        verified_reports=status_counts.get(ReportStatus.verified.value, 0),
+        rejected_reports=status_counts.get(ReportStatus.rejected.value, 0),
+        resolved_reports=status_counts.get(ReportStatus.resolved.value, 0),
+        under_review_reports=status_counts.get(ReportStatus.under_review.value, 0),
+        by_damage_type=[
+            ReportStatsCount(key=damage_key, count=count) for damage_key, count in damage_counts.items()
+        ],
+        by_severity=[
+            ReportStatsCount(key=severity_key, count=count) for severity_key, count in severity_counts.items()
+        ],
+    )
 
 
 @router.get("/{report_id}", response_model=ReportRead)
@@ -165,7 +364,8 @@ async def read_report(report_id: UUID) -> ReportRead:
     report = rows[0]
     if report.get("status") == ReportStatus.pending.value:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is not public yet")
-    return _to_report_read(report)
+    users_map, votes_map = _load_related_maps([report])
+    return _to_report_read(report, users_map, votes_map)
 
 
 @router.patch("/{report_id}", response_model=ReportRead)
@@ -198,7 +398,8 @@ async def update_report(
     updated_rows = updated.data or []
     if not updated_rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update report")
-    return _to_report_read(updated_rows[0])
+    users_map, votes_map = _load_related_maps(updated_rows)
+    return _to_report_read(updated_rows[0], users_map, votes_map)
 
 
 @router.post("/{report_id}/vote", response_model=ReportRead)
@@ -252,7 +453,8 @@ async def vote_report(
     if not updated_rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update vote state")
 
-    return _to_report_read(updated_rows[0])
+    users_map, votes_map = _load_related_maps(updated_rows)
+    return _to_report_read(updated_rows[0], users_map, votes_map)
 
 
 @router.patch("/{report_id}/status", response_model=ReportRead)
@@ -269,4 +471,5 @@ async def moderate_report_status(
     rows = updated.data or []
     if not rows:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-    return _to_report_read(rows[0])
+    users_map, votes_map = _load_related_maps(rows)
+    return _to_report_read(rows[0], users_map, votes_map)

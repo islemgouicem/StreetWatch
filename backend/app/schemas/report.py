@@ -30,6 +30,9 @@ class ReportRead(BaseModel):
 
     id: UUID
     user_id: UUID
+    user_name: str
+    user_avatar_url: str | None = None
+    user_points: int = 0
     image_url: str
     damage_type: DamageType
     severity: Severity
@@ -38,6 +41,8 @@ class ReportRead(BaseModel):
     latitude: float
     longitude: float
     status: ReportStatus
+    upvotes: int = 0
+    downvotes: int = 0
     verification_count: int
     created_at: datetime
     updated_at: datetime
@@ -49,3 +54,19 @@ class NearbyReportRead(ReportRead):
 
 class ReportVoteRequest(BaseModel):
     value: int = Field(default=1, ge=-1, le=1)
+
+
+class ReportStatsCount(BaseModel):
+    key: str
+    count: int
+
+
+class ReportStatsRead(BaseModel):
+    total_reports: int
+    pending_reports: int
+    verified_reports: int
+    rejected_reports: int
+    resolved_reports: int
+    under_review_reports: int
+    by_damage_type: list[ReportStatsCount]
+    by_severity: list[ReportStatsCount]
