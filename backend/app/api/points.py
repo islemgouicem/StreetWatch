@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, Query
 
 from app.api.deps import get_current_admin, get_current_user
 from app.schemas.points import PointAwardRequest, PointTransactionRead
+from app.services.gamification import evaluate_user_gamification
 from app.services.points import award_points
 from app.services.supabase_client import get_supabase_service_client
 
@@ -58,4 +59,5 @@ async def award_points_to_user(
         source_id=payload.source_id,
         reason=payload.reason,
     )
+    evaluate_user_gamification(str(payload.user_id))
     return PointTransactionRead(**row)

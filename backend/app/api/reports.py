@@ -20,6 +20,8 @@ from app.schemas.report import (
     ReportVoteRequest,
 )
 from app.services.supabase_client import get_supabase_service_client
+from app.services.gamification import evaluate_user_gamification
+from app.services.points import award_points
 
 
 router = APIRouter(prefix="/reports", tags=["reports"])
@@ -157,7 +159,16 @@ def _insert_report_for_user(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create report")
 
     users_map, votes_map = _load_related_maps(rows)
-    return _to_report_read(rows[0], users_map, votes_map)
+    report = _to_report_read(rows[0], users_map, votes_map)
+    award_points(
+        user_id=str(current_user["id"]),
+        delta=25,
+        source_type="report_created",
+        source_id=str(report.id),
+        reason="Submitted a new report",
+    )
+    evaluate_user_gamification(str(current_user["id"]))
+    return report
 
 
 def _parse_pagination(
@@ -515,6 +526,7 @@ async def update_report(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
 
     report = rows[0]
+    previous_status = report.get("status")
     if report["user_id"] != current_user["id"] and not bool(current_user.get("is_admin", False)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to edit this report")
     if payload.status is not None and not bool(current_user.get("is_admin", False)):
@@ -532,6 +544,18 @@ async def update_report(
     updated_rows = updated.data or []
     if not updated_rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update report")
+    if (
+        previous_status != ReportStatus.verified.value
+        and updated_rows[0].get("status") == ReportStatus.verified.value
+    ):
+        award_points(
+            user_id=str(updated_rows[0]["user_id"]),
+            delta=50,
+            source_type="report_verified",
+            source_id=str(report_id),
+            reason="Report was verified",
+        )
+        evaluate_user_gamification(str(updated_rows[0]["user_id"]))
     users_map, votes_map = _load_related_maps(updated_rows)
     return _to_report_read(updated_rows[0], users_map, votes_map)
 
@@ -618,7 +642,18 @@ async def verify_report(
     report_id: UUID,
     _: dict[str, Any] = Depends(get_current_admin),
 ) -> ReportRead:
-    return _update_report_status(report_id, ReportStatus.verified)
+    report = _read_report_row(report_id)
+    updated = _update_report_status(report_id, ReportStatus.verified)
+    if report.get("status") != ReportStatus.verified.value:
+        award_points(
+            user_id=str(updated.user_id),
+            delta=50,
+            source_type="report_verified",
+            source_id=str(report_id),
+            reason="Report was verified",
+        )
+        evaluate_user_gamification(str(updated.user_id))
+    return updated
 
 
 @router.post("/{report_id}/reject", response_model=ReportRead)
@@ -698,6 +733,16 @@ async def vote_report(
     if not updated_rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update vote state")
 
+    if previous_value == 0:
+        award_points(
+            user_id=str(current_user["id"]),
+            delta=5,
+            source_type="vote_cast",
+            source_id=str(report_id),
+            reason="Verified a community report",
+        )
+        evaluate_user_gamification(str(current_user["id"]))
+
     users_map, votes_map = _load_related_maps(updated_rows)
     return _to_report_read(updated_rows[0], users_map, votes_map)
 
@@ -711,10 +756,18 @@ async def moderate_report_status(
     if status_value not in (ReportStatus.verified, ReportStatus.rejected, ReportStatus.under_review):
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid moderation status")
 
-    db = get_supabase_service_client()
-    updated = db.table("reports").update({"status": status_value.value}).eq("id", str(report_id)).execute()
-    rows = updated.data or []
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-    users_map, votes_map = _load_related_maps(rows)
-    return _to_report_read(rows[0], users_map, votes_map)
+    report = _read_report_row(report_id)
+    updated = _update_report_status(report_id, status_value)
+    if (
+        report.get("status") != ReportStatus.verified.value
+        and status_value == ReportStatus.verified
+    ):
+        award_points(
+            user_id=str(updated.user_id),
+            delta=50,
+            source_type="report_verified",
+            source_id=str(report_id),
+            reason="Report was verified",
+        )
+        evaluate_user_gamification(str(updated.user_id))
+    return updated

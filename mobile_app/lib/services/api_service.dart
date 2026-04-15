@@ -96,8 +96,8 @@ class ApiService {
       final queryParams = {
         if (page != null) 'page': page.toString(),
         if (pageSize != null) 'page_size': pageSize.toString(),
-        if (status != null) 'status': status,
-        if (username != null) 'username': username,
+        ...?status == null ? null : {'status': status},
+        ...?username == null ? null : {'username': username},
       };
 
       final uri = Uri.parse(
@@ -293,10 +293,10 @@ class ApiService {
   }) async {
     try {
       final body = jsonEncode({
-        if (username != null) 'username': username,
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
-        if (fullName != null) 'full_name': fullName,
-        if (bio != null) 'bio': bio,
+        ...?username == null ? null : {'username': username},
+        ...?avatarUrl == null ? null : {'avatar_url': avatarUrl},
+        ...?fullName == null ? null : {'full_name': fullName},
+        ...?bio == null ? null : {'bio': bio},
       });
 
       final response = await http.patch(
@@ -472,6 +472,57 @@ class ApiService {
     } catch (e) {
       if (e is ApiException) rethrow;
       throw ApiException('Failed to get leaderboard: $e');
+    }
+  }
+
+  // ============ BADGES ENDPOINTS ============
+
+  Future<List<Badge>> getMyBadges() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/badges/me/awards'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => Badge.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch badges',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get badges: $e');
+    }
+  }
+
+  // ============ POINTS ENDPOINTS ============
+
+  Future<List<PointTransaction>> getMyPointsHistory({int? limit}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/points/me/history').replace(
+        queryParameters: limit != null ? {'limit': limit.toString()} : null,
+      );
+
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => PointTransaction.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch point history',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get point history: $e');
     }
   }
 

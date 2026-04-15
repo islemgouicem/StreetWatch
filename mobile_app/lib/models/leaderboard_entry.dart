@@ -19,12 +19,14 @@ class LeaderboardEntry {
 
   factory LeaderboardEntry.fromJson(Map<String, dynamic> json, int rank) {
     return LeaderboardEntry(
-      rank: rank,
-      userId: json['id'] as String? ?? '',
+      rank: json['rank'] as int? ?? rank,
+      userId:
+          json['user_id'] as String? ?? json['id'] as String? ?? '',
       username: json['username'] as String? ?? 'Anonymous',
       avatarUrl: json['avatar_url'] as String?,
       points: json['points'] as int? ?? 0,
-      reports: json['total_reports'] as int? ?? 0,
+      reports:
+          json['total_reports'] as int? ?? json['reports_count'] as int? ?? 0,
       verifiedReports: json['verified_reports'] as int? ?? 0,
     );
   }

@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_admin, get_current_user
 from app.schemas.badge import BadgeCreate, BadgeRead, BadgeUpdate, UserBadgeDetailRead
+from app.services.gamification import evaluate_user_gamification
 from app.services.points import award_points
 from app.services.supabase_client import get_supabase_service_client
 
@@ -186,6 +187,7 @@ async def award_badge_to_user(
             source_id=str(badge_id),
             reason=f"Awarded badge: {badge.get('name') or badge.get('code') or 'badge'}",
         )
+        evaluate_user_gamification(str(user_id))
 
     details = _build_user_badge_details(created_rows)
     if not details:
