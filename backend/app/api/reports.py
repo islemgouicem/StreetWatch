@@ -260,6 +260,25 @@ def _rows_to_geojson(
     }
 
 
+def _read_report_row(report_id: UUID) -> dict[str, Any]:
+    db = get_supabase_service_client()
+    response = db.table("reports").select("*").eq("id", str(report_id)).limit(1).execute()
+    rows = response.data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    return rows[0]
+
+
+def _update_report_status(report_id: UUID, status_value: ReportStatus) -> ReportRead:
+    db = get_supabase_service_client()
+    updated = db.table("reports").update({"status": status_value.value}).eq("id", str(report_id)).execute()
+    rows = updated.data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+    users_map, votes_map = _load_related_maps(rows)
+    return _to_report_read(rows[0], users_map, votes_map)
+
+
 @router.get("", response_model=list[ReportRead])
 async def list_reports(
     status: ReportStatus | None = Query(default=None),
@@ -426,15 +445,57 @@ async def get_report_stats(
     )
 
 
+@router.get("/admin/pending", response_model=list[ReportRead])
+async def list_pending_reports(
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int | None = Query(default=None, ge=0),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=200),
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> list[ReportRead]:
+    db = get_supabase_service_client()
+    effective_limit, effective_offset = _parse_pagination(limit, offset, page, page_size)
+    rows = (
+        db.table("reports")
+        .select("*")
+        .eq("status", ReportStatus.pending.value)
+        .order("created_at", desc=True)
+        .range(effective_offset, effective_offset + effective_limit - 1)
+        .execute()
+        .data
+        or []
+    )
+    users_map, votes_map = _load_related_maps(rows)
+    return [_to_report_read(row, users_map, votes_map) for row in rows]
+
+
+@router.get("/admin/under-review", response_model=list[ReportRead])
+async def list_under_review_reports(
+    limit: int | None = Query(default=None, ge=1, le=200),
+    offset: int | None = Query(default=None, ge=0),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=200),
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> list[ReportRead]:
+    db = get_supabase_service_client()
+    effective_limit, effective_offset = _parse_pagination(limit, offset, page, page_size)
+    rows = (
+        db.table("reports")
+        .select("*")
+        .eq("status", ReportStatus.under_review.value)
+        .order("created_at", desc=True)
+        .range(effective_offset, effective_offset + effective_limit - 1)
+        .execute()
+        .data
+        or []
+    )
+    users_map, votes_map = _load_related_maps(rows)
+    return [_to_report_read(row, users_map, votes_map) for row in rows]
+
+
 @router.get("/{report_id}", response_model=ReportRead)
 async def read_report(report_id: UUID) -> ReportRead:
-    db = get_supabase_service_client()
-    response = db.table("reports").select("*").eq("id", str(report_id)).limit(1).execute()
-    rows = response.data or []
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
-    report = rows[0]
+    report = _read_report_row(report_id)
     if report.get("status") == ReportStatus.pending.value:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Report is not public yet")
     users_map, votes_map = _load_related_maps([report])
@@ -481,12 +542,7 @@ async def delete_report(
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> None:
     db = get_supabase_service_client()
-    response = db.table("reports").select("*").eq("id", str(report_id)).limit(1).execute()
-    rows = response.data or []
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
-
-    report = rows[0]
+    report = _read_report_row(report_id)
     is_admin = bool(current_user.get("is_admin", False))
     is_owner = report["user_id"] == current_user["id"]
 
@@ -555,6 +611,40 @@ async def bulk_create_reports(
             raise
 
     return ReportBulkCreateResponse(results=results)
+
+
+@router.post("/{report_id}/verify", response_model=ReportRead)
+async def verify_report(
+    report_id: UUID,
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> ReportRead:
+    return _update_report_status(report_id, ReportStatus.verified)
+
+
+@router.post("/{report_id}/reject", response_model=ReportRead)
+async def reject_report(
+    report_id: UUID,
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> ReportRead:
+    return _update_report_status(report_id, ReportStatus.rejected)
+
+
+@router.post("/{report_id}/resolve", response_model=ReportRead)
+async def resolve_report(
+    report_id: UUID,
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> ReportRead:
+    return _update_report_status(report_id, ReportStatus.resolved)
+
+
+@router.post("/{report_id}/reopen", response_model=ReportRead)
+async def reopen_report(
+    report_id: UUID,
+    _: dict[str, Any] = Depends(get_current_admin),
+) -> ReportRead:
+    report = _read_report_row(report_id)
+    next_status = ReportStatus.under_review if report.get("verification_count", 0) else ReportStatus.pending
+    return _update_report_status(report_id, next_status)
 
 
 @router.post("/{report_id}/vote", response_model=ReportRead)
