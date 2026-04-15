@@ -1,11 +1,50 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/models/index.dart';
+import 'package:percent_indicator/linear_percent_indicator.dart';
+
 import 'review_submit_screen.dart';
 
-class DetectionResultScreen extends StatelessWidget {
-  const DetectionResultScreen({super.key});
+class DetectionResultScreen extends StatefulWidget {
+  final ReportDraft draft;
+
+  const DetectionResultScreen({super.key, required this.draft});
+
+  @override
+  State<DetectionResultScreen> createState() => _DetectionResultScreenState();
+}
+
+class _DetectionResultScreenState extends State<DetectionResultScreen> {
+  late String _damageType;
+  late String _severity;
+
+  static const List<String> _damageTypes = [
+    'pothole',
+    'crack',
+    'broken_sign',
+    'flooding',
+    'debris',
+    'other',
+  ];
+
+  static const List<String> _severityLevels = ['low', 'medium', 'high'];
+
+  @override
+  void initState() {
+    super.initState();
+    _damageType = widget.draft.damageType;
+    _severity = widget.draft.severity;
+  }
+
+  String _labelize(String value) {
+    return value
+        .split('_')
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,14 +55,24 @@ class DetectionResultScreen extends StatelessWidget {
           children: [
             const _HeaderSection(),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 06),
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Column(
                 children: [
-                  const _DetectionDetailsCard(),
+                  _CapturedImageCard(imagePath: widget.draft.imagePath),
+                  const SizedBox(height: 20),
+                  _DetectionDetailsCard(
+                    damageType: _damageType,
+                    severity: _severity,
+                    onDamageTypeChanged: (value) => setState(() => _damageType = value),
+                    onSeverityChanged: (value) => setState(() => _severity = value),
+                    damageTypes: _damageTypes,
+                    severityLevels: _severityLevels,
+                    labelize: _labelize,
+                  ),
                   const SizedBox(height: 20),
                   const _XpRewardCard(),
                   const SizedBox(height: 20),
-                  _NextStepInformation(),
+                  const _NextStepInformation(),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -31,7 +80,21 @@ class DetectionResultScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomActionSection(),
+      bottomNavigationBar: _BottomActionSection(
+        onRetake: () => Navigator.pop(context),
+        onContinue: () {
+          final nextDraft = widget.draft.copyWith(
+            damageType: _damageType,
+            severity: _severity,
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => ReviewSubmitScreen(draft: nextDraft),
+            ),
+          );
+        },
+      ),
     );
   }
 }
@@ -46,8 +109,7 @@ class _HeaderSection extends StatelessWidget {
         ClipPath(
           clipper: _HeaderClipper(),
           child: Container(
-            height:
-                280, // Increased height to accommodate the larger centered icon
+            height: 280,
             decoration: const BoxDecoration(
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
@@ -64,7 +126,6 @@ class _HeaderSection extends StatelessWidget {
           child: Column(
             children: [
               const SizedBox(height: 60),
-              // White Icon Circle
               Container(
                 width: 65,
                 height: 65,
@@ -87,7 +148,7 @@ class _HeaderSection extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Detection Complete',
+                'Review Damage',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 28,
@@ -95,37 +156,13 @@ class _HeaderSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 6,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withOpacity(0.15),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: Text(
-                      'AI',
-                      style: GoogleFonts.outfit(
-                        color: Colors.white,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Analysis Successful',
-                    style: GoogleFonts.outfit(
-                      color: Colors.white.withOpacity(0.9),
-                      fontSize: 16,
-                      fontWeight: FontWeight.w400,
-                    ),
-                  ),
-                ],
+              Text(
+                'AI comes later, choose the issue details now',
+                style: GoogleFonts.outfit(
+                  color: Colors.white.withOpacity(0.9),
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                ),
               ),
             ],
           ),
@@ -135,28 +172,53 @@ class _HeaderSection extends StatelessWidget {
   }
 }
 
-class _HeaderClipper extends CustomClipper<Path> {
-  @override
-  Path getClip(Size size) {
-    Path path = Path();
-    path.lineTo(0, size.height - 40);
-    path.quadraticBezierTo(
-      size.width / 2,
-      size.height,
-      size.width,
-      size.height - 40,
-    );
-    path.lineTo(size.width, 0);
-    path.close();
-    return path;
-  }
+class _CapturedImageCard extends StatelessWidget {
+  final String imagePath;
+
+  const _CapturedImageCard({required this.imagePath});
 
   @override
-  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
+  Widget build(BuildContext context) {
+    return Container(
+      height: 220,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        image: DecorationImage(
+          image: FileImage(File(imagePath)),
+          fit: BoxFit.cover,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _DetectionDetailsCard extends StatelessWidget {
-  const _DetectionDetailsCard();
+  final String damageType;
+  final String severity;
+  final ValueChanged<String> onDamageTypeChanged;
+  final ValueChanged<String> onSeverityChanged;
+  final List<String> damageTypes;
+  final List<String> severityLevels;
+  final String Function(String) labelize;
+
+  const _DetectionDetailsCard({
+    required this.damageType,
+    required this.severity,
+    required this.onDamageTypeChanged,
+    required this.onSeverityChanged,
+    required this.damageTypes,
+    required this.severityLevels,
+    required this.labelize,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -176,57 +238,56 @@ class _DetectionDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                'Large Pothole',
-                style: GoogleFonts.outfit(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF1A1A1A),
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFFF7ED),
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(
-                      Icons.warning_amber_rounded,
-                      color: Color(0xFFEA580C),
-                      size: 16,
-                    ),
-                    const SizedBox(width: 4),
-                    Text(
-                      'High',
-                      style: GoogleFonts.outfit(
-                        color: const Color(0xFFEA580C),
-                        fontWeight: FontWeight.w600,
-                        fontSize: 14,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
+          Text(
+            'Report Details',
+            style: GoogleFonts.outfit(
+              fontSize: 22,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1A1A1A),
+            ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
+          DropdownButtonFormField<String>(
+            value: damageType,
+            items: damageTypes
+                .map((value) => DropdownMenuItem(value: value, child: Text(labelize(value))))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                onDamageTypeChanged(value);
+              }
+            },
+            decoration: const InputDecoration(
+              labelText: 'Damage type',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 16),
+          DropdownButtonFormField<String>(
+            value: severity,
+            items: severityLevels
+                .map((value) => DropdownMenuItem(value: value, child: Text(labelize(value))))
+                .toList(),
+            onChanged: (value) {
+              if (value != null) {
+                onSeverityChanged(value);
+              }
+            },
+            decoration: const InputDecoration(
+              labelText: 'Severity',
+              border: OutlineInputBorder(),
+            ),
+          ),
+          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text(
-                'Detection Confidence',
+                'Detection confidence',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               Text(
-                '94%',
+                'Manual review',
                 style: GoogleFonts.outfit(
                   color: AppTheme.successGreen,
                   fontWeight: FontWeight.bold,
@@ -238,52 +299,16 @@ class _DetectionDetailsCard extends StatelessWidget {
           const SizedBox(height: 8),
           LinearPercentIndicator(
             padding: EdgeInsets.zero,
-            lineHeight: 12.0,
-            percent: 0.94,
+            lineHeight: 12,
+            percent: 1,
             animation: true,
-            animationDuration: 1000,
+            animationDuration: 700,
             barRadius: const Radius.circular(10),
             progressColor: AppTheme.successGreen,
             backgroundColor: Colors.grey.withOpacity(0.1),
           ),
-          const SizedBox(height: 24),
-          const Divider(height: 1, color: Color(0xFFF1F5F9)),
-          const SizedBox(height: 16),
-          _DetailRow(label: 'Estimated Size', value: '45cm diameter'),
-          const SizedBox(height: 16),
-          _DetailRow(
-            label: 'Risk Assessment',
-            value: 'Immediate attention required',
-            valueColor: Colors.orange,
-          ),
         ],
       ),
-    );
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-
-  const _DetailRow({required this.label, required this.value, this.valueColor});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
-        Text(
-          value,
-          style: GoogleFonts.outfit(
-            color: valueColor ?? const Color(0xFF1A1A1A),
-            fontWeight: FontWeight.w600,
-            fontSize: 14,
-          ),
-        ),
-      ],
     );
   }
 }
@@ -318,7 +343,7 @@ class _XpRewardCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '+150 XP',
+                '+25 XP',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 32,
@@ -342,7 +367,7 @@ class _XpRewardCard extends StatelessWidget {
 }
 
 class _NextStepInformation extends StatelessWidget {
-  _NextStepInformation();
+  const _NextStepInformation();
 
   @override
   Widget build(BuildContext context) {
@@ -360,14 +385,13 @@ class _NextStepInformation extends StatelessWidget {
             fontSize: 14,
             height: 1.5,
           ),
-          children: [
+          children: const [
             TextSpan(
               text: 'Next Step: ',
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             TextSpan(
-              text:
-                  'Review the location and submit your report to earn XP and help your community!',
+              text: 'Confirm the location and submit your report to the live backend.',
             ),
           ],
         ),
@@ -377,7 +401,13 @@ class _NextStepInformation extends StatelessWidget {
 }
 
 class _BottomActionSection extends StatelessWidget {
-  const _BottomActionSection();
+  final VoidCallback onRetake;
+  final VoidCallback onContinue;
+
+  const _BottomActionSection({
+    required this.onRetake,
+    required this.onContinue,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -391,33 +421,17 @@ class _BottomActionSection extends StatelessWidget {
         child: Row(
           children: [
             Expanded(
-              flex: 1,
               child: OutlinedButton.icon(
-                onPressed: () {},
+                onPressed: onRetake,
                 icon: const Icon(Icons.refresh, size: 20),
                 label: const Text('Retake'),
-                style: OutlinedButton.styleFrom(
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  side: const BorderSide(color: Color(0xFFE2E8F0)),
-                  foregroundColor: const Color(0xFF64748B),
-                ),
               ),
             ),
             const SizedBox(width: 16),
             Expanded(
               flex: 2,
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const ReviewSubmitScreen(),
-                    ),
-                  );
-                },
+                onPressed: onContinue,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppTheme.primaryBlue,
                   foregroundColor: Colors.white,
@@ -425,17 +439,13 @@ class _BottomActionSection extends StatelessWidget {
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 0,
                 ),
-                child: Row(
+                child: const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
-                  children: const [
+                  children: [
                     Text(
                       'Continue',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     SizedBox(width: 8),
                     Icon(Icons.arrow_forward, size: 20),
@@ -448,4 +458,19 @@ class _BottomActionSection extends StatelessWidget {
       ),
     );
   }
+}
+
+class _HeaderClipper extends CustomClipper<Path> {
+  @override
+  Path getClip(Size size) {
+    final path = Path();
+    path.lineTo(0, size.height - 40);
+    path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 40);
+    path.lineTo(size.width, 0);
+    path.close();
+    return path;
+  }
+
+  @override
+  bool shouldReclip(CustomClipper<Path> oldClipper) => false;
 }

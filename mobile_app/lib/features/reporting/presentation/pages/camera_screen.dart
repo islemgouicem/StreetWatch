@@ -1,6 +1,8 @@
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/models/index.dart';
+
 import 'detection_result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -13,6 +15,7 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
   bool _isCameraInitialized = false;
+  bool _isCapturing = false;
 
   @override
   void initState() {
@@ -26,19 +29,58 @@ class _CameraScreenState extends State<CameraScreen> {
       if (cameras.isEmpty) return;
 
       _controller = CameraController(
-        cameras[0],
+        cameras.first,
         ResolutionPreset.high,
         enableAudio: false,
       );
 
       await _controller!.initialize();
-      if (mounted) {
-        setState(() {
-          _isCameraInitialized = true;
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _isCameraInitialized = true;
+      });
     } catch (e) {
       debugPrint('Camera initialization error: $e');
+    }
+  }
+
+  Future<void> _captureAndContinue() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized || _isCapturing) {
+      return;
+    }
+
+    setState(() {
+      _isCapturing = true;
+    });
+
+    try {
+      final picture = await controller.takePicture();
+      if (!mounted) return;
+
+      final draft = ReportDraft(
+        imagePath: picture.path,
+        damageType: 'pothole',
+        severity: 'medium',
+      );
+
+      await Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => DetectionResultScreen(draft: draft),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to capture image: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isCapturing = false;
+        });
+      }
     }
   }
 
@@ -61,29 +103,14 @@ class _CameraScreenState extends State<CameraScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          // Camera Preview
-          Positioned.fill(
-            child: CameraPreview(_controller!),
-          ),
-
-          // Grid Lines Overlay
+          Positioned.fill(child: CameraPreview(_controller!)),
           const _GridOverlay(),
-
-          // Detection Frame
           const _DetectionFrameOverlay(),
-
-          // Top Status Tags
           const _TopStatusSection(),
-
-          // Bottom Action Bar
-          _BottomActionSection(onCapture: () {
-            // In a real app, capture image here. 
-            // For now, navigate to detection result.
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DetectionResultScreen()),
-            );
-          }),
+          _BottomActionSection(
+            isCapturing: _isCapturing,
+            onCapture: _captureAndContinue,
+          ),
         ],
       ),
     );
@@ -99,11 +126,11 @@ class _GridOverlay extends StatelessWidget {
       child: Column(
         children: List.generate(
           4,
-          (index) => Expanded(
+          (_) => Expanded(
             child: Row(
               children: List.generate(
                 3,
-                (index) => Expanded(
+                (_) => Expanded(
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(
@@ -140,13 +167,10 @@ class _DetectionFrameOverlay extends StatelessWidget {
         ),
         child: Stack(
           children: [
-            // Corners
             _buildCorner(top: 0, left: 0, rotation: 0),
             _buildCorner(top: 0, right: 0, rotation: 1.57),
             _buildCorner(bottom: 0, left: 0, rotation: 4.71),
             _buildCorner(bottom: 0, right: 0, rotation: 3.14),
-            
-            // Preview Label
             Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -155,7 +179,7 @@ class _DetectionFrameOverlay extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Preview',
+                  'Frame the road issue',
                   style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontSize: 12,
@@ -204,17 +228,17 @@ class _TopStatusSection extends StatelessWidget {
       left: 20,
       right: 20,
       child: Row(
-        children: [
+        children: const [
           _StatusTag(
             icon: Icons.location_on,
-            label: 'GPS Active',
-            color: const Color(0xFF22C55E),
+            label: 'GPS on submit',
+            color: Color(0xFF22C55E),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           _StatusTag(
             icon: Icons.bolt,
-            label: 'AI Ready',
-            color: const Color(0xFF84CC16),
+            label: 'AI later',
+            color: Color(0xFF84CC16),
           ),
         ],
       ),
@@ -256,8 +280,13 @@ class _StatusTag extends StatelessWidget {
 }
 
 class _BottomActionSection extends StatelessWidget {
+  final bool isCapturing;
   final VoidCallback onCapture;
-  const _BottomActionSection({required this.onCapture});
+
+  const _BottomActionSection({
+    required this.isCapturing,
+    required this.onCapture,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -283,7 +312,7 @@ class _BottomActionSection extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: onCapture,
+              onTap: isCapturing ? null : onCapture,
               child: Container(
                 width: 85,
                 height: 85,
@@ -297,7 +326,12 @@ class _BottomActionSection extends StatelessWidget {
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: const Icon(Icons.camera_alt, color: Colors.black, size: 40),
+                  child: isCapturing
+                      ? const Padding(
+                          padding: EdgeInsets.all(22),
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        )
+                      : const Icon(Icons.camera_alt, color: Colors.black, size: 40),
                 ),
               ),
             ),

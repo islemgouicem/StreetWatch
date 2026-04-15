@@ -122,6 +122,40 @@ class ApiService {
     }
   }
 
+  Future<List<Report>> getMyReports({
+    int? page,
+    int? pageSize,
+    String? status,
+  }) async {
+    try {
+      final queryParams = {
+        if (page != null) 'page': page.toString(),
+        if (pageSize != null) 'page_size': pageSize.toString(),
+        ...?status == null ? null : {'status': status},
+      };
+
+      final uri = Uri.parse(
+        '$baseUrl/users/me/reports',
+      ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => Report.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch your reports',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get my reports: $e');
+    }
+  }
+
   /// Get nearby reports (within radius)
   Future<List<Report>> getNearbyReports({
     required double latitude,
@@ -540,8 +574,8 @@ class ApiService {
         throw ApiException('User not authenticated');
       }
 
-      // Storage path: reports-images/{userId}/{fileName}
-      final storagePath = 'reports-images/$userId/$fileName';
+      // Storage path inside the bucket: {userId}/{fileName}
+      final storagePath = '$userId/$fileName';
 
       await _supabase.storage
           .from('reports-images')
@@ -569,8 +603,8 @@ class ApiService {
         throw ApiException('User not authenticated');
       }
 
-      // Storage path: avatars/{userId}/{fileName}
-      final storagePath = 'avatars/$userId/$fileName';
+      // Storage path inside the bucket: {userId}/{fileName}
+      final storagePath = '$userId/$fileName';
 
       await _supabase.storage
           .from('avatars')
