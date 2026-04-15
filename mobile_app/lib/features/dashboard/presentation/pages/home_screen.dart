@@ -448,7 +448,7 @@ class _ReportDamageActionState extends State<_ReportDamageAction> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const DetectionResultScreen(),
+            builder: (context) => const CameraScreen(),
           ),
         );
       },
