@@ -1,5 +1,5 @@
 from app.schemas.auth import LoginRequest, RegisterRequest, TokenResponse
-from app.schemas.badge import BadgeRead, UserBadgeRead
+from app.schemas.badge import BadgeCreate, BadgeRead, BadgeUpdate, UserBadgeDetailRead, UserBadgeRead
 from app.schemas.leaderboard import LeaderboardEntry
 from app.schemas.preferences import (
     AppearancePreferences,
@@ -31,7 +31,10 @@ __all__ = [
     "RegisterRequest",
     "TokenResponse",
     "BadgeRead",
+    "BadgeCreate",
+    "BadgeUpdate",
     "UserBadgeRead",
+    "UserBadgeDetailRead",
     "LeaderboardEntry",
     "AppearancePreferences",
     "AppearancePreferencesUpdate",
