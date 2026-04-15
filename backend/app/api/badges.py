@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.api.deps import get_current_admin, get_current_user
 from app.schemas.badge import BadgeCreate, BadgeRead, BadgeUpdate, UserBadgeDetailRead
+from app.services.points import award_points
 from app.services.supabase_client import get_supabase_service_client
 
 
@@ -176,9 +177,15 @@ async def award_badge_to_user(
     if not created_rows:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to award badge")
 
-    current_points = int(user_rows[0].get("points") or 0)
     reward_points = int(badge.get("points_reward") or 0)
-    db.table("users").update({"points": current_points + reward_points}).eq("id", str(user_id)).execute()
+    if reward_points:
+        award_points(
+            user_id=str(user_id),
+            delta=reward_points,
+            source_type="badge_award",
+            source_id=str(badge_id),
+            reason=f"Awarded badge: {badge.get('name') or badge.get('code') or 'badge'}",
+        )
 
     details = _build_user_badge_details(created_rows)
     if not details:

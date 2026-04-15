@@ -12,6 +12,7 @@ from app.schemas.preferences import (
     SecurityPreferencesUpdate,
     UserPreferencesRead,
 )
+from app.schemas.points import PointAwardRequest, PointTransactionRead
 from app.schemas.report import (
     ReportBulkCreateRequest,
     ReportBulkCreateResponse,
@@ -43,6 +44,8 @@ __all__ = [
     "LanguagePreferences",
     "LanguagePreferencesUpdate",
     "NearbyReportRead",
+    "PointAwardRequest",
+    "PointTransactionRead",
     "ReportBulkCreateRequest",
     "ReportBulkCreateResponse",
     "ReportBulkItemResult",
