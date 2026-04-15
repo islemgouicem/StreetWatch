@@ -180,6 +180,34 @@ def _filter_rows_by_bbox(rows: list[dict[str, Any]], bbox: str | None) -> list[d
     ]
 
 
+def _rows_to_geojson(
+    rows: list[dict[str, Any]],
+    users_map: dict[str, dict[str, Any]],
+    votes_map: dict[str, dict[str, int]],
+) -> dict[str, Any]:
+    features: list[dict[str, Any]] = []
+    for row in rows:
+        report = _to_report_read(row, users_map, votes_map)
+        properties = report.model_dump(mode="json")
+        properties.pop("latitude", None)
+        properties.pop("longitude", None)
+        features.append(
+            {
+                "type": "Feature",
+                "geometry": {
+                    "type": "Point",
+                    "coordinates": [report.longitude, report.latitude],
+                },
+                "properties": properties,
+            }
+        )
+
+    return {
+        "type": "FeatureCollection",
+        "features": features,
+    }
+
+
 @router.get("", response_model=list[ReportRead])
 async def list_reports(
     status: ReportStatus | None = Query(default=None),
@@ -254,6 +282,47 @@ async def list_nearby_reports(
         )
         for row, distance_meters in nearby[:limit]
     ]
+
+
+@router.get("/geojson")
+async def list_reports_geojson(
+    status: ReportStatus | None = Query(default=None),
+    damage_type: DamageType | None = Query(default=None),
+    severity: Severity | None = Query(default=None),
+    user_id: UUID | None = Query(default=None),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    bbox: str | None = Query(default=None),
+    limit: int | None = Query(default=None, ge=1, le=2000),
+    offset: int | None = Query(default=None, ge=0),
+    page: int | None = Query(default=None, ge=1),
+    page_size: int | None = Query(default=None, ge=1, le=2000),
+) -> dict[str, Any]:
+    db = get_supabase_service_client()
+    effective_limit, effective_offset = _parse_pagination(limit, offset, page, page_size)
+    query = db.table("reports").select("*").order("created_at", desc=True)
+    query = _apply_report_filters(
+        query,
+        status_value=status,
+        damage_type=damage_type,
+        severity=severity,
+        user_id=user_id,
+        date_from=date_from,
+        date_to=date_to,
+    )
+
+    fetch_limit = effective_limit if not bbox else min(max(effective_offset + effective_limit, 500), 5000)
+    rows = (
+        query.range(
+            0 if bbox else effective_offset,
+            (fetch_limit - 1) if bbox else (effective_offset + effective_limit - 1),
+        ).execute().data
+        or []
+    )
+    rows = _filter_rows_by_bbox(rows, bbox)
+    rows = rows[effective_offset : effective_offset + effective_limit] if bbox else rows
+    users_map, votes_map = _load_related_maps(rows)
+    return _rows_to_geojson(rows, users_map, votes_map)
 
 
 @router.post("", response_model=ReportRead, status_code=status.HTTP_201_CREATED)
@@ -400,6 +469,32 @@ async def update_report(
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to update report")
     users_map, votes_map = _load_related_maps(updated_rows)
     return _to_report_read(updated_rows[0], users_map, votes_map)
+
+
+@router.delete("/{report_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_report(
+    report_id: UUID,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> None:
+    db = get_supabase_service_client()
+    response = db.table("reports").select("*").eq("id", str(report_id)).limit(1).execute()
+    rows = response.data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Report not found")
+
+    report = rows[0]
+    is_admin = bool(current_user.get("is_admin", False))
+    is_owner = report["user_id"] == current_user["id"]
+
+    if not is_owner and not is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this report")
+    if not is_admin and report.get("status") != ReportStatus.pending.value:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only pending reports can be deleted by their owner",
+        )
+
+    db.table("reports").delete().eq("id", str(report_id)).execute()
 
 
 @router.post("/{report_id}/vote", response_model=ReportRead)
