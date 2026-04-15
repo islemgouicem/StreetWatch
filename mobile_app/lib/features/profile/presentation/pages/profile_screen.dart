@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/models/badge.dart' as app_models;
+import 'package:mobile_app/models/point_transaction.dart';
+import 'package:mobile_app/services/api_service.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
 import 'package:mobile_app/features/reporting/presentation/pages/my_reports_screen.dart';
@@ -16,6 +19,10 @@ class ProfileScreen extends StatefulWidget {
 }
 
 class _ProfileScreenState extends State<ProfileScreen> {
+  late final ApiService _apiService;
+  List<app_models.Badge> _badges = const [];
+  List<PointTransaction> _pointHistory = const [];
+
   String _fallbackDisplayName() {
     final currentUser = Supabase.instance.client.auth.currentUser;
     final metadata = currentUser?.userMetadata;
@@ -35,9 +42,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
   @override
   void initState() {
     super.initState();
+    _apiService = ApiService(Supabase.instance.client);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<AuthBloc>().add(const AuthFetchCurrentUserEvent());
     });
+    _loadGamificationData();
   }
 
   int _levelFromPoints(int points) {
@@ -63,33 +72,28 @@ class _ProfileScreenState extends State<ProfileScreen> {
     return '$month ${date.day}, ${date.year}';
   }
 
-  List<Map<String, String>> _buildUnlockedBadges({
-    required int totalReports,
-    required int verifiedReports,
-    required int points,
-  }) {
-    final badges = <Map<String, String>>[];
-
-    if (totalReports >= 1) {
-      badges.add({'icon': '🎯', 'name': 'First Report'});
+  Future<void> _loadGamificationData() async {
+    try {
+      final badgesFuture = _apiService.getMyBadges();
+      final pointsFuture = _apiService.getMyPointsHistory(limit: 3);
+      final badges = await badgesFuture;
+      final pointHistory = await pointsFuture;
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _badges = badges;
+        _pointHistory = pointHistory;
+      });
+    } catch (_) {
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _badges = const [];
+        _pointHistory = const [];
+      });
     }
-    if (verifiedReports >= 1) {
-      badges.add({'icon': '🛡️', 'name': 'Verified Reporter'});
-    }
-    if (totalReports >= 10) {
-      badges.add({'icon': '👁️', 'name': 'Sharp Eye'});
-    }
-    if (points >= 1000) {
-      badges.add({'icon': '⭐', 'name': 'Community Hero'});
-    }
-    if (verifiedReports >= 10) {
-      badges.add({'icon': '⚡', 'name': 'Fast Responder'});
-    }
-    if (points >= 2500) {
-      badges.add({'icon': '🏆', 'name': 'Top Reporter'});
-    }
-
-    return badges;
   }
 
   @override
@@ -117,12 +121,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ? state.user.createdAt
               : DateTime.now();
 
-          final unlockedBadges = _buildUnlockedBadges(
-            totalReports: totalReports,
-            verifiedReports: verifiedReports,
-            points: points,
-          );
-          final recentBadges = unlockedBadges.take(4).toList();
+          final recentBadges = _badges.take(4).toList();
           final level = _levelFromPoints(points);
           final nextLevelXp = level * 500;
           final progress = ((points % 500) / 500).clamp(0.0, 1.0);
@@ -150,7 +149,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     child: _StatsCard(
                       totalReports: totalReports,
                       totalXp: points,
-                      badgesCount: unlockedBadges.length,
+                      badgesCount: _badges.length,
                       level: level,
                       nextLevelXp: nextLevelXp,
                       progress: progress,
@@ -195,6 +194,44 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       ),
                       const SizedBox(height: 10),
                       _RecentBadgesGrid(badges: recentBadges),
+                      const SizedBox(height: 24),
+                      Text(
+                        'Recent Points',
+                        style: GoogleFonts.outfit(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                      const SizedBox(height: 16),
+                      if (_pointHistory.isEmpty)
+                        const _ActivityCard(
+                          icon: Icons.bolt_outlined,
+                          title: 'Points history',
+                          value: 'Your recent XP gains will appear here.',
+                          iconColor: Color(0xFF84CC16),
+                          iconBgColor: Color(0xFFECFCCB),
+                        )
+                      else
+                        ..._pointHistory.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 12),
+                            child: _ActivityCard(
+                              icon: entry.delta >= 0
+                                  ? Icons.trending_up
+                                  : Icons.trending_down,
+                              title: entry.reason ?? entry.sourceType,
+                              value:
+                                  '${entry.delta >= 0 ? '+' : ''}${entry.delta} XP • ${_formatDate(entry.createdAt)}',
+                              iconColor: entry.delta >= 0
+                                  ? const Color(0xFF22C55E)
+                                  : const Color(0xFFEF4444),
+                              iconBgColor: entry.delta >= 0
+                                  ? const Color(0xFFDCFCE7)
+                                  : const Color(0xFFFEE2E2),
+                            ),
+                          ),
+                        ),
                       const SizedBox(height: 24),
                       Text(
                         'Activity',
@@ -608,9 +645,34 @@ class _StatsCard extends StatelessWidget {
 }
 
 class _RecentBadgesGrid extends StatelessWidget {
-  final List<Map<String, String>> badges;
+  final List<app_models.Badge> badges;
 
   const _RecentBadgesGrid({required this.badges});
+
+  String _emojiForBadge(app_models.Badge badge) {
+    switch (badge.code) {
+      case 'first_report':
+        return '🎯';
+      case 'verified_reporter':
+        return '🛡️';
+      case 'sharp_eye':
+        return '👁️';
+      case 'street_guardian':
+        return '🏙️';
+      case 'community_hero':
+        return '⭐';
+      case 'century_club':
+        return '💯';
+      case 'fast_responder':
+        return '⚡';
+      case 'top_reporter':
+        return '🏆';
+      case 'first_vote':
+        return '🗳️';
+      default:
+        return '🏅';
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -651,12 +713,12 @@ class _RecentBadgesGrid extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
                 Text(
-                  badge['icon'] ?? '⭐',
+                  _emojiForBadge(badge),
                   style: const TextStyle(fontSize: 27),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  badge['name'] ?? 'Badge',
+                  badge.name,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,

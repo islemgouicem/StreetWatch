@@ -57,7 +57,7 @@ export function MapView({ reports, selectedReport, onSelectReport }: MapViewProp
       element.type = 'button'
       element.className = `map-marker${selectedReport?.id === report.id ? ' is-selected' : ''}`
       element.style.setProperty('--marker-color', severityColors[report.severity])
-      element.setAttribute('aria-label', `${report.damageType} in ${report.district}`)
+      element.setAttribute('aria-label', `${report.damageType} at ${report.locationLabel}`)
       element.addEventListener('click', () => onSelectReport(report))
 
       const marker = new maplibregl.Marker({ element, anchor: 'bottom' })

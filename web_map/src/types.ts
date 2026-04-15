@@ -1,8 +1,14 @@
-export type DamageType = 'Pothole' | 'Crack' | 'Broken Sign' | 'Faded Marking'
+export type DamageType =
+  | 'Pothole'
+  | 'Crack'
+  | 'Broken Sign'
+  | 'Flooding'
+  | 'Debris'
+  | 'Other'
 
 export type Severity = 'Low' | 'Medium' | 'High'
 
-export type ReportStatus = 'Pending' | 'Verified' | 'Resolved'
+export type ReportStatus = 'Verified' | 'Rejected' | 'Resolved'
 
 export type Report = {
   id: string
@@ -14,7 +20,16 @@ export type Report = {
   longitude: number
   reportedAt: string
   reporter: string
-  district: string
+  reporterPoints: number
+  locationLabel: string
   description: string
   imageUrl: string
+}
+
+export type ReportStats = {
+  totalReports: number
+  highSeverityReports: number
+  verifiedReports: number
+  resolvedReports: number
+  rejectedReports: number
 }

@@ -1,52 +1,251 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { MapView } from './components/MapView'
-import { mockReports } from './data/mockReports'
-import type { DamageType, Report, ReportStatus, Severity } from './types'
+import type { DamageType, Report, ReportStats, ReportStatus, Severity } from './types'
 
-const allDamageTypes: DamageType[] = ['Pothole', 'Crack', 'Broken Sign', 'Faded Marking']
+const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.trim() || 'http://localhost:8000/api/v1'
+
+const allDamageTypes: DamageType[] = ['Pothole', 'Crack', 'Broken Sign', 'Flooding', 'Debris', 'Other']
 const allSeverityLevels: Severity[] = ['Low', 'Medium', 'High']
-const allStatuses: ReportStatus[] = ['Pending', 'Verified', 'Resolved']
+const allStatuses: ReportStatus[] = ['Verified', 'Rejected', 'Resolved']
+
+type GeoJsonFeature = {
+  geometry: { coordinates: [number, number] }
+  properties: {
+    id: string
+    image_url: string
+    damage_type: string
+    severity: string
+    status: string
+    created_at: string
+    description: string | null
+    user_name: string
+    user_points: number
+  }
+}
+
+type ReportsStatsResponse = {
+  total_reports: number
+  verified_reports: number
+  rejected_reports: number
+  resolved_reports: number
+  by_severity: Array<{ key: string; count: number }>
+}
+
+function titleizeEnum(value: string): string {
+  return value
+    .split('_')
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ') as DamageType | Severity | ReportStatus
+}
+
+function toDateFrom(range: 'all' | 'today' | 'week'): string | null {
+  if (range === 'all') {
+    return null
+  }
+
+  const now = new Date()
+  const next = new Date(now)
+  next.setHours(0, 0, 0, 0)
+
+  if (range === 'week') {
+    next.setDate(next.getDate() - 7)
+  }
+
+  return next.toISOString()
+}
+
+function buildQueryParams({
+  damageTypes,
+  severity,
+  dateRange,
+  status,
+}: {
+  damageTypes: DamageType[]
+  severity: Severity[]
+  dateRange: 'all' | 'today' | 'week'
+  status: ReportStatus
+}): URLSearchParams {
+  const params = new URLSearchParams()
+  params.set('limit', '200')
+
+  if (damageTypes.length === 1) {
+    params.set('damage_type', damageTypes[0].toLowerCase().replaceAll(' ', '_'))
+  }
+  if (severity.length === 1) {
+    params.set('severity', severity[0].toLowerCase())
+  }
+
+  const dateFrom = toDateFrom(dateRange)
+  if (dateFrom) {
+    params.set('date_from', dateFrom)
+  }
+
+  params.set('status', status.toLowerCase())
+  return params
+}
+
+function mapFeatureToReport(feature: GeoJsonFeature): Report {
+  const [longitude, latitude] = feature.geometry.coordinates
+  const damageType = titleizeEnum(feature.properties.damage_type) as DamageType
+  const severity = titleizeEnum(feature.properties.severity) as Severity
+  const status = titleizeEnum(feature.properties.status) as ReportStatus
+
+  return {
+    id: feature.properties.id,
+    title: `${damageType} report`,
+    damageType,
+    severity,
+    status,
+    latitude,
+    longitude,
+    reportedAt: feature.properties.created_at,
+    reporter: feature.properties.user_name || 'Anonymous',
+    reporterPoints: feature.properties.user_points ?? 0,
+    locationLabel: `${latitude.toFixed(5)}, ${longitude.toFixed(5)}`,
+    description: feature.properties.description ?? 'No additional description was provided.',
+    imageUrl: feature.properties.image_url,
+  }
+}
+
+async function fetchStatusReports(
+  status: ReportStatus,
+  filters: {
+    damageTypes: DamageType[]
+    severity: Severity[]
+    dateRange: 'all' | 'today' | 'week'
+  },
+): Promise<Report[]> {
+  const params = buildQueryParams({ ...filters, status })
+  const response = await fetch(`${apiBaseUrl}/reports/geojson?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to load ${status.toLowerCase()} reports`)
+  }
+
+  const payload = (await response.json()) as { features?: GeoJsonFeature[] }
+  return (payload.features ?? []).map(mapFeatureToReport)
+}
+
+async function fetchStatusStats(
+  status: ReportStatus,
+  filters: {
+    damageTypes: DamageType[]
+    severity: Severity[]
+    dateRange: 'all' | 'today' | 'week'
+  },
+): Promise<ReportsStatsResponse> {
+  const params = buildQueryParams({ ...filters, status })
+  const response = await fetch(`${apiBaseUrl}/reports/stats?${params.toString()}`)
+  if (!response.ok) {
+    throw new Error(`Failed to load ${status.toLowerCase()} statistics`)
+  }
+
+  return (await response.json()) as ReportsStatsResponse
+}
 
 function App() {
   const [selectedDamageTypes, setSelectedDamageTypes] = useState<DamageType[]>(allDamageTypes)
   const [selectedSeverity, setSelectedSeverity] = useState<Severity[]>(allSeverityLevels)
   const [selectedStatuses, setSelectedStatuses] = useState<ReportStatus[]>(allStatuses)
   const [dateRange, setDateRange] = useState<'all' | 'today' | 'week'>('week')
-  const [selectedReportId, setSelectedReportId] = useState<string>(mockReports[0]?.id ?? '')
-
-  const filteredReports = mockReports.filter((report) => {
-    if (!selectedDamageTypes.includes(report.damageType)) {
-      return false
-    }
-
-    if (!selectedSeverity.includes(report.severity)) {
-      return false
-    }
-
-    if (!selectedStatuses.includes(report.status)) {
-      return false
-    }
-
-    if (dateRange === 'all') {
-      return true
-    }
-
-    const reportTime = new Date(report.reportedAt).getTime()
-    const now = new Date('2026-04-05T12:00:00Z').getTime()
-    const oneDay = 24 * 60 * 60 * 1000
-    const rangeLimit = dateRange === 'today' ? oneDay : 7 * oneDay
-
-    return now - reportTime <= rangeLimit
+  const [selectedReportId, setSelectedReportId] = useState('')
+  const [reports, setReports] = useState<Report[]>([])
+  const [stats, setStats] = useState<ReportStats>({
+    totalReports: 0,
+    highSeverityReports: 0,
+    verifiedReports: 0,
+    resolvedReports: 0,
+    rejectedReports: 0,
   })
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
-  const selectedReport =
-    filteredReports.find((report) => report.id === selectedReportId) ?? filteredReports[0] ?? null
+  useEffect(() => {
+    let cancelled = false
 
-  const totalReports = filteredReports.length
-  const highSeverityReports = filteredReports.filter((report) => report.severity === 'High').length
-  const verifiedReports = filteredReports.filter((report) => report.status === 'Verified').length
-  const districtsCovered = new Set(filteredReports.map((report) => report.district)).size
+    async function loadDashboard() {
+      setIsLoading(true)
+      setError(null)
+
+      try {
+        const activeStatuses = selectedStatuses.length > 0 ? selectedStatuses : allStatuses
+        const filters = {
+          damageTypes: selectedDamageTypes,
+          severity: selectedSeverity,
+          dateRange,
+        }
+
+        const [reportGroups, statsGroups] = await Promise.all([
+          Promise.all(activeStatuses.map((status) => fetchStatusReports(status, filters))),
+          Promise.all(activeStatuses.map((status) => fetchStatusStats(status, filters))),
+        ])
+
+        if (cancelled) {
+          return
+        }
+
+        const nextReports = reportGroups.flat().sort((left, right) => {
+          return new Date(right.reportedAt).getTime() - new Date(left.reportedAt).getTime()
+        })
+
+        const nextStats = statsGroups.reduce<ReportStats>(
+          (accumulator, current) => {
+            const highSeverityCount =
+              current.by_severity.find((item) => item.key === 'high')?.count ?? 0
+
+            return {
+              totalReports: accumulator.totalReports + current.total_reports,
+              highSeverityReports: accumulator.highSeverityReports + highSeverityCount,
+              verifiedReports: accumulator.verifiedReports + current.verified_reports,
+              resolvedReports: accumulator.resolvedReports + current.resolved_reports,
+              rejectedReports: accumulator.rejectedReports + current.rejected_reports,
+            }
+          },
+          {
+            totalReports: 0,
+            highSeverityReports: 0,
+            verifiedReports: 0,
+            resolvedReports: 0,
+            rejectedReports: 0,
+          },
+        )
+
+        setReports(nextReports)
+        setStats(nextStats)
+        setSelectedReportId((current) => {
+          if (nextReports.some((report) => report.id === current)) {
+            return current
+          }
+          return nextReports[0]?.id ?? ''
+        })
+      } catch (loadError) {
+        if (!cancelled) {
+          setError(loadError instanceof Error ? loadError.message : 'Failed to load the public dashboard.')
+          setReports([])
+          setStats({
+            totalReports: 0,
+            highSeverityReports: 0,
+            verifiedReports: 0,
+            resolvedReports: 0,
+            rejectedReports: 0,
+          })
+          setSelectedReportId('')
+        }
+      } finally {
+        if (!cancelled) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadDashboard()
+
+    return () => {
+      cancelled = true
+    }
+  }, [dateRange, selectedDamageTypes, selectedSeverity, selectedStatuses])
+
+  const selectedReport = reports.find((report) => report.id === selectedReportId) ?? reports[0] ?? null
 
   function toggleFilter<T extends string>(
     current: T[],
@@ -66,36 +265,36 @@ function App() {
           <div className="hero-topline">
             <div>
               <p className="eyebrow">StreetWatch Public Dashboard</p>
-              <h1>Public road issue map</h1>
+              <h1>Live road issue map</h1>
             </div>
             <button type="button" className="hero-notify">
-              3
+              Live
             </button>
           </div>
 
           <p className="hero-description">
-            Track potholes, cracks, broken signs, and faded markings through a cleaner public map
-            interface built with dummy data and structured for backend integration next.
+            Explore verified, rejected, and resolved citizen reports directly from the FastAPI and
+            Supabase backend with live filters and map statistics.
           </p>
 
           <div className="hero-metrics">
             <div className="hero-score">
-              <span className="hero-score-number">12</span>
+              <span className="hero-score-number">{stats.totalReports}</span>
               <div>
-                <p className="metric-label">Current phase</p>
-                <strong>Web Map MVP</strong>
+                <p className="metric-label">Visible reports</p>
+                <strong>Live backend feed</strong>
               </div>
             </div>
 
             <div className="hero-progress-copy">
               <div className="hero-progress-head">
-                <span>Delivery progress</span>
-                <strong>#3 Public Map</strong>
+                <span>Current source</span>
+                <strong>FastAPI + PostGIS</strong>
               </div>
               <div className="hero-progress">
                 <div className="hero-progress-bar" />
               </div>
-              <p>Map rendering, filters, statistics, and dummy data structure are in place.</p>
+              <p>The web map is now consuming real report and statistics endpoints instead of mock data.</p>
             </div>
           </div>
         </div>
@@ -105,34 +304,34 @@ function App() {
             <p className="eyebrow eyebrow-light">Public view</p>
             <h2>Explore active reports</h2>
             <p>
-              Filter issues by severity, type, verification status, and date without relying on a
-              backend yet.
+              Filter real reports by severity, type, lifecycle status, and recent activity across the
+              city map.
             </p>
           </div>
-          <div className="cta-icon">Map</div>
+          <div className="cta-icon">Live</div>
         </div>
       </section>
 
       <section className="stats-grid">
         <article className="stat-card">
           <span className="stat-icon">◎</span>
-          <strong>{totalReports}</strong>
+          <strong>{stats.totalReports}</strong>
           <span>Visible reports</span>
         </article>
         <article className="stat-card">
           <span className="stat-icon">▲</span>
-          <strong>{highSeverityReports}</strong>
+          <strong>{stats.highSeverityReports}</strong>
           <span>High severity</span>
         </article>
         <article className="stat-card">
           <span className="stat-icon">✓</span>
-          <strong>{verifiedReports}</strong>
+          <strong>{stats.verifiedReports}</strong>
           <span>Verified</span>
         </article>
         <article className="stat-card">
           <span className="stat-icon">◌</span>
-          <strong>{districtsCovered}</strong>
-          <span>Districts covered</span>
+          <strong>{stats.resolvedReports + stats.rejectedReports}</strong>
+          <span>Closed outcomes</span>
         </article>
       </section>
 
@@ -237,17 +436,27 @@ function App() {
             <div className="panel-heading compact">
               <div>
                 <p className="section-label">Report feed</p>
-                <h3>{filteredReports.length} visible issues</h3>
+                <h3>{isLoading ? 'Loading issues...' : `${reports.length} visible issues`}</h3>
               </div>
             </div>
 
-            {filteredReports.length === 0 ? (
+            {error ? (
+              <div className="empty-state">
+                <strong>Could not load the live dashboard.</strong>
+                <p>{error}</p>
+              </div>
+            ) : isLoading ? (
+              <div className="empty-state">
+                <strong>Loading live reports.</strong>
+                <p>Fetching reports and map statistics from the backend.</p>
+              </div>
+            ) : reports.length === 0 ? (
               <div className="empty-state">
                 <strong>No reports match these filters.</strong>
                 <p>Broaden the selected filters to repopulate the map and report feed.</p>
               </div>
             ) : (
-              filteredReports.map((report) => (
+              reports.map((report) => (
                 <button
                   key={report.id}
                   type="button"
@@ -262,7 +471,7 @@ function App() {
                   </div>
                   <span>{report.damageType}</span>
                   <span>
-                    {report.district} • {new Date(report.reportedAt).toLocaleDateString('en-GB')}
+                    {report.locationLabel} • {new Date(report.reportedAt).toLocaleDateString('en-GB')}
                   </span>
                 </button>
               ))
@@ -290,7 +499,7 @@ function App() {
               </div>
             </div>
             <MapView
-              reports={filteredReports}
+              reports={reports}
               selectedReport={selectedReport}
               onSelectReport={(report: Report) => setSelectedReportId(report.id)}
             />
@@ -319,8 +528,10 @@ function App() {
 
                   <div className="detail-meta">
                     <span>{selectedReport.damageType}</span>
-                    <span>{selectedReport.district}</span>
-                    <span>{selectedReport.reporter}</span>
+                    <span>{selectedReport.locationLabel}</span>
+                    <span>
+                      {selectedReport.reporter} • {selectedReport.reporterPoints} XP
+                    </span>
                     <span>{new Date(selectedReport.reportedAt).toLocaleString('en-GB')}</span>
                   </div>
                 </div>
