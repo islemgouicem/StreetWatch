@@ -9,6 +9,9 @@ from app.api.deps import get_current_admin, get_current_user
 from app.schemas.enums import DamageType, ReportStatus, Severity
 from app.schemas.report import (
     NearbyReportRead,
+    ReportBulkCreateRequest,
+    ReportBulkCreateResponse,
+    ReportBulkItemResult,
     ReportCreate,
     ReportRead,
     ReportStatsCount,
@@ -77,6 +80,7 @@ def _to_report_read(
     return ReportRead(
         id=row["id"],
         user_id=row["user_id"],
+        client_report_id=row.get("client_report_id"),
         user_name=user.get("username") or "Anonymous",
         user_avatar_url=user.get("avatar_url"),
         user_points=int(user.get("points") or 0),
@@ -106,6 +110,54 @@ def _is_duplicate(payload: ReportCreate, candidate: dict[str, Any]) -> bool:
         float(candidate["longitude"]),
     )
     return distance_km <= 0.03
+
+
+def _insert_report_for_user(
+    payload: ReportCreate,
+    current_user: dict[str, Any],
+) -> ReportRead:
+    db = get_supabase_service_client()
+
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    recent = (
+        db.table("reports")
+        .select("id,damage_type,latitude,longitude")
+        .gte("created_at", cutoff)
+        .in_("status", ["pending", "verified", "under_review"])
+        .limit(300)
+        .execute()
+        .data
+        or []
+    )
+    for candidate in recent:
+        if _is_duplicate(payload, candidate):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Potential duplicate report detected nearby",
+            )
+
+    created = (
+        db.table("reports")
+        .insert(
+            {
+                "user_id": current_user["id"],
+                "client_report_id": payload.client_report_id,
+                "image_url": payload.image_url,
+                "damage_type": payload.damage_type.value,
+                "severity": payload.severity.value,
+                "description": payload.description,
+                "latitude": payload.latitude,
+                "longitude": payload.longitude,
+            }
+        )
+        .execute()
+    )
+    rows = created.data or []
+    if not rows:
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create report")
+
+    users_map, votes_map = _load_related_maps(rows)
+    return _to_report_read(rows[0], users_map, votes_map)
 
 
 def _parse_pagination(
@@ -330,47 +382,7 @@ async def create_report(
     payload: ReportCreate,
     current_user: dict[str, Any] = Depends(get_current_user),
 ) -> ReportRead:
-    db = get_supabase_service_client()
-
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-    recent = (
-        db.table("reports")
-        .select("id,damage_type,latitude,longitude")
-        .gte("created_at", cutoff)
-        .in_("status", ["pending", "verified", "under_review"])
-        .limit(300)
-        .execute()
-        .data
-        or []
-    )
-    for candidate in recent:
-        if _is_duplicate(payload, candidate):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Potential duplicate report detected nearby",
-            )
-
-    created = (
-        db.table("reports")
-        .insert(
-            {
-                "user_id": current_user["id"],
-                "image_url": payload.image_url,
-                "damage_type": payload.damage_type.value,
-                "severity": payload.severity.value,
-                "description": payload.description,
-                "latitude": payload.latitude,
-                "longitude": payload.longitude,
-            }
-        )
-        .execute()
-    )
-    rows = created.data or []
-    if not rows:
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Failed to create report")
-
-    users_map, votes_map = _load_related_maps(rows)
-    return _to_report_read(rows[0], users_map, votes_map)
+    return _insert_report_for_user(payload, current_user)
 
 
 @router.get("/stats", response_model=ReportStatsRead)
@@ -495,6 +507,62 @@ async def delete_report(
         )
 
     db.table("reports").delete().eq("id", str(report_id)).execute()
+
+
+@router.post("/bulk", response_model=ReportBulkCreateResponse)
+async def bulk_create_reports(
+    payload: ReportBulkCreateRequest,
+    current_user: dict[str, Any] = Depends(get_current_user),
+) -> ReportBulkCreateResponse:
+    db = get_supabase_service_client()
+    results: list[ReportBulkItemResult] = []
+
+    for report_payload in payload.reports:
+        client_report_id = report_payload.client_report_id
+        if client_report_id:
+            existing = (
+                db.table("reports")
+                .select("*")
+                .eq("user_id", str(current_user["id"]))
+                .eq("client_report_id", client_report_id)
+                .limit(1)
+                .execute()
+            )
+            existing_rows = existing.data or []
+            if existing_rows:
+                users_map, votes_map = _load_related_maps(existing_rows)
+                results.append(
+                    ReportBulkItemResult(
+                        client_report_id=client_report_id,
+                        status="duplicate",
+                        detail="Report already synced previously",
+                        report=_to_report_read(existing_rows[0], users_map, votes_map),
+                    )
+                )
+                continue
+
+        try:
+            report = _insert_report_for_user(report_payload, current_user)
+            results.append(
+                ReportBulkItemResult(
+                    client_report_id=client_report_id,
+                    status="created",
+                    report=report,
+                )
+            )
+        except HTTPException as exc:
+            if exc.status_code == status.HTTP_409_CONFLICT:
+                results.append(
+                    ReportBulkItemResult(
+                        client_report_id=client_report_id,
+                        status="conflict",
+                        detail=str(exc.detail),
+                    )
+                )
+                continue
+            raise
+
+    return ReportBulkCreateResponse(results=results)
 
 
 @router.post("/{report_id}/vote", response_model=ReportRead)

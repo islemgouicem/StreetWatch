@@ -13,6 +13,9 @@ from app.schemas.preferences import (
     UserPreferencesRead,
 )
 from app.schemas.report import (
+    ReportBulkCreateRequest,
+    ReportBulkCreateResponse,
+    ReportBulkItemResult,
     NearbyReportRead,
     ReportCreate,
     ReportRead,
@@ -37,6 +40,9 @@ __all__ = [
     "LanguagePreferences",
     "LanguagePreferencesUpdate",
     "NearbyReportRead",
+    "ReportBulkCreateRequest",
+    "ReportBulkCreateResponse",
+    "ReportBulkItemResult",
     "ReportCreate",
     "ReportRead",
     "ReportStatsCount",

@@ -13,6 +13,7 @@ class ReportCreate(BaseModel):
     image_url: str = Field(min_length=1)
     latitude: float
     longitude: float
+    client_report_id: str | None = Field(default=None, min_length=1, max_length=255)
 
 
 class ReportUpdate(BaseModel):
@@ -30,6 +31,7 @@ class ReportRead(BaseModel):
 
     id: UUID
     user_id: UUID
+    client_report_id: str | None = None
     user_name: str
     user_avatar_url: str | None = None
     user_points: int = 0
@@ -70,3 +72,18 @@ class ReportStatsRead(BaseModel):
     under_review_reports: int
     by_damage_type: list[ReportStatsCount]
     by_severity: list[ReportStatsCount]
+
+
+class ReportBulkItemResult(BaseModel):
+    client_report_id: str | None = None
+    status: str
+    detail: str | None = None
+    report: ReportRead | None = None
+
+
+class ReportBulkCreateRequest(BaseModel):
+    reports: list[ReportCreate] = Field(min_length=1, max_length=100)
+
+
+class ReportBulkCreateResponse(BaseModel):
+    results: list[ReportBulkItemResult]
