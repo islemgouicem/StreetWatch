@@ -304,35 +304,27 @@ async def list_nearby_reports(
 ) -> list[NearbyReportRead]:
     db = get_supabase_service_client()
     rows = (
-        db.table("reports")
-        .select("*")
-        .in_("status", ["verified", "rejected"])
-        .order("created_at", desc=True)
-        .limit(1000)
+        db.rpc(
+            "nearby_public_reports",
+            {
+                "input_latitude": latitude,
+                "input_longitude": longitude,
+                "input_radius_km": radius_km,
+                "input_limit": limit,
+            },
+        )
         .execute()
         .data
         or []
     )
     users_map, votes_map = _load_related_maps(rows)
 
-    nearby: list[tuple[dict[str, Any], float]] = []
-    for row in rows:
-        distance_km = _haversine_km(
-            latitude,
-            longitude,
-            float(row["latitude"]),
-            float(row["longitude"]),
-        )
-        if distance_km <= radius_km:
-            nearby.append((row, distance_km * 1000.0))
-
-    nearby.sort(key=lambda item: item[1])
     return [
         NearbyReportRead(
             **_to_report_read(row, users_map, votes_map).model_dump(),
-            distance_meters=distance_meters,
+            distance_meters=float(row["distance_meters"]),
         )
-        for row, distance_meters in nearby[:limit]
+        for row in rows
     ]
 
 
