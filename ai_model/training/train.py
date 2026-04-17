@@ -4,7 +4,7 @@ import wandb
 import os
 
 # you should run the following command in the terminal:
-# uv run train.py
+# uv run train.py 
 
 # ── Get the directory where this script is located ──────────────────────────
 script_dir = os.path.dirname(os.path.abspath(__file__))
