@@ -82,22 +82,34 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
       final imageName = widget.draft.imagePath.split(Platform.pathSeparator).last;
       final fileName =
           '${DateTime.now().millisecondsSinceEpoch}_$imageName';
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      if (userId == null) {
+        throw Exception('User not authenticated');
+      }
+      final storagePath = '$userId/$fileName';
 
       final imageUrl = await _apiService.uploadReportImage(
         fileName: fileName,
         fileBytes: bytes,
+        storagePath: storagePath,
       );
 
-      final report = await _apiService.createReport(
-        damageType: widget.draft.damageType,
-        severity: widget.draft.severity,
-        latitude: position.latitude,
-        longitude: position.longitude,
-        description: _descriptionController.text.trim().isEmpty
-            ? null
-            : _descriptionController.text.trim(),
-        imageUrl: imageUrl,
-      );
+      Report report;
+      try {
+        report = await _apiService.createReport(
+          damageType: widget.draft.damageType,
+          severity: widget.draft.severity,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          description: _descriptionController.text.trim().isEmpty
+              ? null
+              : _descriptionController.text.trim(),
+          imageUrl: imageUrl,
+        );
+      } catch (error) {
+        await _apiService.deleteReportImage(storagePath);
+        rethrow;
+      }
 
       if (!mounted) return;
       await Navigator.pushReplacement(

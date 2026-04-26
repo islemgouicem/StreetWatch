@@ -6,6 +6,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
 from app.api.deps import get_current_admin, get_current_user
+from app.core.config import get_settings
 from app.schemas.enums import DamageType, ReportStatus, Severity
 from app.schemas.report import (
     NearbyReportRead,
@@ -119,6 +120,7 @@ def _insert_report_for_user(
     current_user: dict[str, Any],
 ) -> ReportRead:
     db = get_supabase_service_client()
+    settings = get_settings()
 
     cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
     recent = (
@@ -138,20 +140,22 @@ def _insert_report_for_user(
                 detail="Potential duplicate report detected nearby",
             )
 
+    insert_payload: dict[str, Any] = {
+        "user_id": current_user["id"],
+        "client_report_id": payload.client_report_id,
+        "image_url": payload.image_url,
+        "damage_type": payload.damage_type.value,
+        "severity": payload.severity.value,
+        "description": payload.description,
+        "latitude": payload.latitude,
+        "longitude": payload.longitude,
+    }
+    if settings.auto_verify_new_reports:
+        insert_payload["status"] = ReportStatus.verified.value
+
     created = (
         db.table("reports")
-        .insert(
-            {
-                "user_id": current_user["id"],
-                "client_report_id": payload.client_report_id,
-                "image_url": payload.image_url,
-                "damage_type": payload.damage_type.value,
-                "severity": payload.severity.value,
-                "description": payload.description,
-                "latitude": payload.latitude,
-                "longitude": payload.longitude,
-            }
-        )
+        .insert(insert_payload)
         .execute()
     )
     rows = created.data or []
@@ -167,6 +171,14 @@ def _insert_report_for_user(
         source_id=str(report.id),
         reason="Submitted a new report",
     )
+    if report.status == ReportStatus.verified:
+        award_points(
+            user_id=str(current_user["id"]),
+            delta=50,
+            source_type="report_verified",
+            source_id=str(report.id),
+            reason="Report was verified",
+        )
     evaluate_user_gamification(str(current_user["id"]))
     return report
 

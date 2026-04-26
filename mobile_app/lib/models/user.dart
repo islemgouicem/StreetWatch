@@ -4,6 +4,7 @@ class User {
   final String? username;
   final String? fullName;
   final String? avatarUrl;
+  final String? bio;
   final int points;
   final int totalReports;
   final int verifiedReports;
@@ -17,6 +18,7 @@ class User {
     this.username,
     this.fullName,
     this.avatarUrl,
+    this.bio,
     this.points = 0,
     this.totalReports = 0,
     this.verifiedReports = 0,
@@ -32,6 +34,7 @@ class User {
       username: json['username'] as String?,
       fullName: json['full_name'] as String?,
       avatarUrl: json['avatar_url'] as String?,
+      bio: json['bio'] as String?,
       points: json['points'] as int? ?? 0,
       totalReports: json['total_reports'] as int? ?? 0,
       verifiedReports: json['verified_reports'] as int? ?? 0,
@@ -52,6 +55,7 @@ class User {
       'username': username,
       'full_name': fullName,
       'avatar_url': avatarUrl,
+      'bio': bio,
       'points': points,
       'total_reports': totalReports,
       'verified_reports': verifiedReports,
@@ -67,6 +71,7 @@ class User {
     String? username,
     String? fullName,
     String? avatarUrl,
+    String? bio,
     int? points,
     int? totalReports,
     int? verifiedReports,
@@ -80,6 +85,7 @@ class User {
       username: username ?? this.username,
       fullName: fullName ?? this.fullName,
       avatarUrl: avatarUrl ?? this.avatarUrl,
+      bio: bio ?? this.bio,
       points: points ?? this.points,
       totalReports: totalReports ?? this.totalReports,
       verifiedReports: verifiedReports ?? this.verifiedReports,

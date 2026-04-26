@@ -87,6 +87,7 @@ def _build_user_read(user_row: dict[str, Any], stats: UserStats | None = None) -
         username=user_row.get("username") or "",
         full_name=user_row.get("full_name"),
         avatar_url=user_row.get("avatar_url"),
+        bio=user_row.get("bio"),
         points=int(user_row.get("points") or 0),
         is_active=bool(user_row.get("is_active", True)),
         is_admin=bool(user_row.get("is_admin", False)),
