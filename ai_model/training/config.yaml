@@ -1,4 +1,0 @@
-dataset_path: ../dataset/rdd2022
-batch_size: 32
-epochs: 20
-image_size: 224
