@@ -1,0 +1,2 @@
+epoch,phase,lr,train_total,train_bbox,train_cls,train_sev,val_total,val_bbox,val_cls,val_sev
+1,1,0.005000,0.8170,0.0000,0.8170,0.0000,0.7661,0.0000,0.7661,0.0000

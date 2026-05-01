@@ -83,6 +83,31 @@ class Trainer:
         )
         print(f"[Trainer] Using device: {self.device}")
 
+        self.device = torch.device(
+
+            "cuda" if torch.cuda.is_available() else
+
+            "mps"  if torch.backends.mps.is_available() else
+
+            "cpu"
+
+        )
+
+        print(f"[Trainer] Using device: {self.device}")
+
+        # 👇 ADD THIS
+
+        print("[DEBUG] CUDA available:", torch.cuda.is_available())
+
+        print("[DEBUG] CUDA device count:", torch.cuda.device_count())
+
+        if torch.cuda.is_available():
+
+            print("[DEBUG] GPU name:", torch.cuda.get_device_name(0))
+
+            print("[DEBUG] Initial VRAM allocated (MB):",
+
+          torch.cuda.memory_allocated() / 1024**2)
         # ── Output directory ────────────────────
         self.out_dir = Path(self.tcfg.checkpoint_dir)
         self.out_dir.mkdir(parents=True, exist_ok=True)

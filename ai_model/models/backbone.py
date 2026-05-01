@@ -35,8 +35,9 @@ class EfficientNetLite0Backbone(nn.Module):
         )
 
         # Resolve actual channel widths from model metadata
-        info = self._backbone.feature_info.info(indices=(3, 4))
-        self._out_channels: Tuple[int, int] = tuple(fi["num_chs"] for fi in info)
+        self._out_channels = tuple(
+        self._backbone.feature_info.channels()[-2:]
+        )
 
         print(
             f"[Backbone] EfficientNet-Lite0  pretrained={pretrained}  "
@@ -50,7 +51,7 @@ class EfficientNetLite0Backbone(nn.Module):
         return self._out_channels
 
     def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
-        """
+        """info = 
         Args:
             x: [B, 3, 320, 320]
         Returns:

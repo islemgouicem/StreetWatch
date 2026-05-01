@@ -84,11 +84,11 @@ class TrainingConfig:
     phase1_epochs: int = 15
     phase2_epochs: int = 65
 
-    batch_size: int = 16
+    batch_size: int = 32
     num_workers: int = 4
 
-    phase1_lr: float = 0.010
-    phase2_lr: float = 0.005
+    phase1_lr: float = 0.020
+    phase2_lr: float = 0.010
     backbone_lr_factor: float = 0.1
     weight_decay: float = 5e-4
     momentum: float = 0.9
