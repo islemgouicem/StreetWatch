@@ -5,9 +5,9 @@ data: "rdd2022.yaml"
 pretrained: false
 
 # Training parameters
-epoch: 10 # 100
+epoch: 100 # 100
 warmup_epochs: 5              # 5% of 100 epochs
-batch: 5 #32
+batch: 32 #32
 imgsz: 320
 save_period: 10
 workers: 1
