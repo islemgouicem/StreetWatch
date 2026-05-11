@@ -168,7 +168,7 @@ class _MapPageState extends State<MapPage> {
                               spacing: 10,
                               runSpacing: 10,
                               children: [
-                                _buildFilterButton('All', Colors.green),
+                                _buildFilterButton('All', Colors.grey),
                                 _buildFilterButton('Low', Colors.green),
                                 _buildFilterButton('Medium', Colors.orange),
                                 _buildFilterButton('High', Colors.red),
@@ -219,24 +219,6 @@ class _MapPageState extends State<MapPage> {
               )
               .toList();
 
-    if (filtered.isEmpty) {
-      return [
-        Marker(
-          width: 70,
-          height: 70,
-          point: _defaultCenter,
-          child: GestureDetector(
-            onTap: () => showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (context) => showDetails(context),
-            ),
-            child: PulsingMarker(),
-          ),
-        ),
-      ];
-    }
-
     return filtered
         .map(
           (report) => Marker(
@@ -247,9 +229,9 @@ class _MapPageState extends State<MapPage> {
               onTap: () => showModalBottomSheet(
                 context: context,
                 backgroundColor: Colors.transparent,
-                builder: (context) => showDetails(context),
+                builder: (context) => showDetails(context, report: report),
               ),
-              child: PulsingMarker(),
+              child: PulsingMarker(severity: report.severity.value.toLowerCase()),
             ),
           ),
         )

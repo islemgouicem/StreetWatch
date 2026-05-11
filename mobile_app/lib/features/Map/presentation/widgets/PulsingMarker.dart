@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
 
 class PulsingMarker extends StatefulWidget {
-  const PulsingMarker({super.key});
+    final String severity;
 
+  const PulsingMarker({super.key, required this.severity});
   @override
   State<PulsingMarker> createState() => _PulsingMarkerState();
 }
@@ -57,9 +58,15 @@ class _PulsingMarkerState extends State<PulsingMarker>
                     height: 35,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: Colors.yellow,
-                      border: Border.all(
-                        color: Colors.yellow,
+                      color:  (widget.severity == 'low')? Colors.green
+                        : (widget.severity == 'medium')? Colors.orange
+                        : (widget.severity == 'high')? Colors.red
+                        : Colors.grey,
+                        border: Border.all(
+                        color:  (widget.severity == 'low')? Colors.green
+                          : (widget.severity == 'medium')? Colors.orange
+                          : (widget.severity == 'high')? Colors.red
+                          : Colors.grey,
                         width: 4,
                       ),
                     ),
@@ -74,7 +81,10 @@ class _PulsingMarkerState extends State<PulsingMarker>
             width: 35,
             height: 35,
             decoration: BoxDecoration(
-              color: Colors.yellow[700],
+              color:  (widget.severity == 'low')? Colors.green
+              : (widget.severity == 'medium')? Colors.orange
+              : (widget.severity == 'high')? Colors.red
+              : Colors.grey,
               borderRadius: const BorderRadius.all(Radius.circular(30)),
               border: Border.all(color: Colors.white, width: 2),
               boxShadow: const [
