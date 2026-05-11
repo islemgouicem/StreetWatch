@@ -159,7 +159,6 @@ class ApiService {
         Uri.parse('$baseUrl/reports/$reportId'),
         headers: await _getHeaders(),
       );
-
       if (response.statusCode == 200) {
         return Report.fromJson(jsonDecode(response.body));
       } else if (response.statusCode == 404) {
