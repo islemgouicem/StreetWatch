@@ -1,4 +1,28 @@
-dataset_path: ../dataset/rdd2022
-batch_size: 32
-epochs: 20
-image_size: 224
+# Dataset
+data: "rdd2022.yaml"
+
+# Model
+pretrained: false
+
+# Training parameters
+epoch: 10 # 100
+warmup_epochs: 5              # 5% of 100 epochs
+batch: 5 #32
+imgsz: 320
+save_period: 10
+workers: 1
+seed: 1337
+cos_lr: true
+
+# Augmentation
+mosaic: 1.0
+mixup: 0.1
+fliplr: 0.5
+hsv_h: 0.015
+hsv_s: 0.7
+hsv_v: 0.4
+
+# Experiment tracking
+project_folder: runs     # For YOLO
+wandb_project: "StreetWatch"       # For wandb
+name: "Baseline_YOLOv8Nano_Scratch"
