@@ -16,7 +16,7 @@ class _RanksPageState extends State<RanksPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
-  static const String _fallbackAvatar = 'lounis.png';
+  static const String _fallbackAvatar = 'lounis.jpg';
 
   @override
   void initState() {
