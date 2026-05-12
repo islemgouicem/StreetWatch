@@ -36,6 +36,7 @@ def _row_to_current_user(user_row: dict[str, Any]) -> dict[str, Any]:
         "username": user_row.get("username"),
         "full_name": user_row.get("full_name"),
         "avatar_url": user_row.get("avatar_url"),
+        "image_profile": user_row.get("image_profile"),
         "points": int(user_row.get("points") or 0),
         "is_active": bool(user_row.get("is_active", True)),
         "is_admin": bool(user_row.get("is_admin", False)),
