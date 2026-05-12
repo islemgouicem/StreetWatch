@@ -1,13 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/features/Ranks/presentation/utilities/image_handler.dart';
 
 Widget hozrizontalWidget({
   required String name,
-  required String image,
+  required String? image,
   required String points,
   required String rank,
   required String level,
 }) {
-  
+
   final int rankNum = int.tryParse(rank) ?? 99;
 
   final Color rankColor = rankNum == 1
@@ -81,7 +82,10 @@ Widget hozrizontalWidget({
               ),
               child: CircleAvatar(
                 radius: 24,
-                backgroundImage: AssetImage(image),
+                backgroundColor: Colors.transparent,
+                child: ClipOval(
+                  child: ProfileImage(imageUrl: image),
+                ),
               ),
             ),
 

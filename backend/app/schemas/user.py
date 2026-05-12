@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     full_name: str | None = None
     avatar_url: str | None = None
+    image_profile: str | None = None
 
 
 class UserCreate(UserBase):
@@ -19,6 +20,7 @@ class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=3, max_length=50)
     full_name: str | None = None
     avatar_url: str | None = None
+    image_profile: str | None = None
 
 
 class UserRead(UserBase):

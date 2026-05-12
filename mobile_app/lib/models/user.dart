@@ -10,6 +10,7 @@ class User {
   final DateTime createdAt;
   final DateTime? updatedAt;
   final bool isAdmin;
+  final String? image_profile;
 
   User({
     required this.id,
@@ -22,16 +23,22 @@ class User {
     this.verifiedReports = 0,
     required this.createdAt,
     this.updatedAt,
-    this.isAdmin = false,
+    this.isAdmin = false, 
+    this.image_profile,
   });
 
   factory User.fromJson(Map<String, dynamic> json) {
+    final avatarUrl = _readString(json['avatar_url']) ??
+        _readString(json['avatarUrl']) ??
+        _readString(json['image_profile']);
+
     return User(
       id: json['id'] as String,
       email: json['email'] as String? ?? '',
+      image_profile: _readString(json['image_profile']),
       username: json['username'] as String?,
       fullName: json['full_name'] as String?,
-      avatarUrl: json['avatar_url'] as String?,
+      avatarUrl: avatarUrl,
       points: json['points'] as int? ?? 0,
       totalReports: json['total_reports'] as int? ?? 0,
       verifiedReports: json['verified_reports'] as int? ?? 0,
@@ -58,6 +65,7 @@ class User {
       'created_at': createdAt.toIso8601String(),
       'updated_at': updatedAt?.toIso8601String(),
       'is_admin': isAdmin,
+      'image_profile': image_profile,
     };
   }
 
@@ -65,6 +73,7 @@ class User {
     String? id,
     String? email,
     String? username,
+    String? image_profile,
     String? fullName,
     String? avatarUrl,
     int? points,
@@ -78,6 +87,7 @@ class User {
       id: id ?? this.id,
       email: email ?? this.email,
       username: username ?? this.username,
+      image_profile: image_profile ?? this.image_profile,
       fullName: fullName ?? this.fullName,
       avatarUrl: avatarUrl ?? this.avatarUrl,
       points: points ?? this.points,
@@ -92,4 +102,13 @@ class User {
   @override
   String toString() =>
       'User(id: $id, email: $email, username: $username, points: $points)';
+}
+
+String? _readString(Object? value) {
+  if (value is! String) {
+    return null;
+  }
+
+  final trimmed = value.trim();
+  return trimmed.isEmpty ? null : trimmed;
 }
