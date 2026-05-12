@@ -1,8 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:mobile_app/features/Ranks/presentation/utilities/image_handler.dart';
 
 Widget verticalWidget({
   required String name,
-  required String image,
+  required String? image,
   required String points,
   required String rank,
   required String level,
@@ -78,8 +79,13 @@ Widget verticalWidget({
                   backgroundColor: rankColor,
                   child: CircleAvatar(
                     radius: isFirst ? 33 : 27,
-                    backgroundImage: AssetImage(image),
+                    backgroundColor: Colors.transparent,
+                    child: ClipOval(
+                      child: ProfileImage(imageUrl: image),
+                    ),
                   ),
+
+  
                 ),
                 // Rank badge
                 Positioned(
