@@ -1,6 +1,8 @@
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/services/tflite_service.dart';
 import 'detection_result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -13,11 +15,14 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
   bool _isCameraInitialized = false;
+  final TfliteService _tfliteService = TfliteService();
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
+    _tfliteService.loadModel();
   }
 
   Future<void> _initializeCamera() async {
@@ -42,9 +47,48 @@ class _CameraScreenState extends State<CameraScreen> {
     }
   }
 
+  Future<void> _captureAndDetect() async {
+    if (_controller == null || !_controller!.value.isInitialized || _isProcessing) {
+      return;
+    }
+
+    setState(() {
+      _isProcessing = true;
+    });
+
+    try {
+      final XFile image = await _controller!.takePicture();
+      final File imageFile = File(image.path);
+
+      // Run inference
+      final recognitions = await _tfliteService.runInference(imageFile);
+
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetectionResultScreen(
+              recognitions: recognitions,
+              imagePath: image.path,
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      debugPrint('Error during capture/detection: $e');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isProcessing = false;
+        });
+      }
+    }
+  }
+
   @override
   void dispose() {
     _controller?.dispose();
+    _tfliteService.close();
     super.dispose();
   }
 
@@ -75,15 +119,27 @@ class _CameraScreenState extends State<CameraScreen> {
           // Top Status Tags
           const _TopStatusSection(),
 
+          // Processing Indicator
+          if (_isProcessing)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Analyzing road surface...',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
           // Bottom Action Bar
-          _BottomActionSection(onCapture: () {
-            // In a real app, capture image here. 
-            // For now, navigate to detection result.
-            Navigator.push(
-              context,
-              MaterialPageRoute(builder: (context) => const DetectionResultScreen()),
-            );
-          }),
+          _BottomActionSection(onCapture: _captureAndDetect),
         ],
       ),
     );

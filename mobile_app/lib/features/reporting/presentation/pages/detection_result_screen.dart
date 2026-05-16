@@ -2,13 +2,25 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/services/tflite_service.dart';
 import 'review_submit_screen.dart';
 
 class DetectionResultScreen extends StatelessWidget {
-  const DetectionResultScreen({super.key});
+  final List<Recognition>? recognitions;
+  final String? imagePath;
+
+  const DetectionResultScreen({
+    super.key,
+    this.recognitions,
+    this.imagePath,
+  });
 
   @override
   Widget build(BuildContext context) {
+    final topRecognition = (recognitions != null && recognitions!.isNotEmpty) 
+        ? recognitions![0] 
+        : null;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       body: SingleChildScrollView(
@@ -19,7 +31,7 @@ class DetectionResultScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 06),
               child: Column(
                 children: [
-                  const _DetectionDetailsCard(),
+                  _DetectionDetailsCard(recognition: topRecognition),
                   const SizedBox(height: 20),
                   const _XpRewardCard(),
                   const SizedBox(height: 20),
@@ -156,10 +168,16 @@ class _HeaderClipper extends CustomClipper<Path> {
 }
 
 class _DetectionDetailsCard extends StatelessWidget {
-  const _DetectionDetailsCard();
+  final Recognition? recognition;
+
+  const _DetectionDetailsCard({this.recognition});
 
   @override
   Widget build(BuildContext context) {
+    final label = recognition?.label ?? 'No Damage Detected';
+    final confidence = recognition?.score ?? 0.0;
+    final confidencePercentage = (confidence * 100).toInt();
+
     return Container(
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
@@ -180,7 +198,7 @@ class _DetectionDetailsCard extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               Text(
-                'Large Pothole',
+                label,
                 style: GoogleFonts.outfit(
                   fontSize: 22,
                   fontWeight: FontWeight.bold,
@@ -205,7 +223,7 @@ class _DetectionDetailsCard extends StatelessWidget {
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      'High',
+                      confidence > 0.7 ? 'High' : 'Medium',
                       style: GoogleFonts.outfit(
                         color: const Color(0xFFEA580C),
                         fontWeight: FontWeight.w600,
@@ -226,7 +244,7 @@ class _DetectionDetailsCard extends StatelessWidget {
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               Text(
-                '94%',
+                '$confidencePercentage%',
                 style: GoogleFonts.outfit(
                   color: AppTheme.successGreen,
                   fontWeight: FontWeight.bold,
@@ -239,7 +257,7 @@ class _DetectionDetailsCard extends StatelessWidget {
           LinearPercentIndicator(
             padding: EdgeInsets.zero,
             lineHeight: 12.0,
-            percent: 0.94,
+            percent: confidence,
             animation: true,
             animationDuration: 1000,
             barRadius: const Radius.circular(10),
@@ -249,12 +267,15 @@ class _DetectionDetailsCard extends StatelessWidget {
           const SizedBox(height: 24),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          _DetailRow(label: 'Estimated Size', value: '45cm diameter'),
+          _DetailRow(
+            label: 'Type',
+            value: recognition != null ? 'Structural Damage' : 'N/A',
+          ),
           const SizedBox(height: 16),
           _DetailRow(
             label: 'Risk Assessment',
-            value: 'Immediate attention required',
-            valueColor: Colors.orange,
+            value: confidence > 0.7 ? 'High Priority' : 'Regular Priority',
+            valueColor: confidence > 0.7 ? Colors.orange : Colors.blue,
           ),
         ],
       ),
