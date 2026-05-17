@@ -16,6 +16,7 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
   bool milestoneAlerts = true;
   bool productUpdates = false;
   bool _isSaving = false;
+  bool _isLoading = true;
   late ApiService _apiService;
 
   @override
@@ -23,6 +24,26 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
     super.initState();
     final supabase = Supabase.instance.client;
     _apiService = ApiService(supabase);
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final preferences = await _apiService.getMyPreferences();
+      final email = preferences['email'] as Map<String, dynamic>? ?? const {};
+      if (!mounted) return;
+      setState(() {
+        incidentDigest = email['incident_digest'] as bool? ?? true;
+        milestoneAlerts = email['milestone_alerts'] as bool? ?? true;
+        productUpdates = email['product_updates'] as bool? ?? false;
+      });
+    } catch (_) {
+      // Keep defaults if loading fails.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _updateEmailPreferences() async {
@@ -64,7 +85,9 @@ class _EmailSettingsScreenState extends State<EmailSettingsScreen> {
     return SettingsPageShell(
       title: 'Email Settings',
       subtitle: 'Manage your email preferences',
-      child: ListView(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         children: [
           Container(

@@ -1,9 +1,22 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/bloc/index.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/models/index.dart';
+import 'package:mobile_app/navigation/navigation_wrapper.dart';
 
 class SubmissionSuccessScreen extends StatelessWidget {
-  const SubmissionSuccessScreen({super.key});
+  final Report report;
+
+  const SubmissionSuccessScreen({super.key, required this.report});
+
+  String get _statusMessage {
+    if (report.status == ReportStatus.verified) {
+      return 'Your report is live and can now appear on the public web map.';
+    }
+    return 'Your report is now stored and visible in your report history.';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -64,7 +77,7 @@ class SubmissionSuccessScreen extends StatelessWidget {
 
                     // Subtitle
                     Text(
-                      'Thank you for making your city better',
+                      _statusMessage,
                       textAlign: TextAlign.center,
                       style: GoogleFonts.outfit(
                         color: Colors.white.withOpacity(0.9),
@@ -98,7 +111,7 @@ class SubmissionSuccessScreen extends StatelessWidget {
                           ),
                           const SizedBox(height: 4),
                           Text(
-                            '+150',
+                            '+25',
                             style: GoogleFonts.outfit(
                               color: Colors.white,
                               fontSize: 50, // Reduced from 54
@@ -122,9 +135,15 @@ class SubmissionSuccessScreen extends StatelessWidget {
                     // Centered Bottom Button (integrated in column)
                     ElevatedButton(
                       onPressed: () {
-                        Navigator.of(
-                          context,
-                        ).popUntil((route) => route.isFirst);
+                        context.read<AuthBloc>().add(
+                          const AuthFetchCurrentUserEvent(),
+                        );
+                        Navigator.of(context).pushAndRemoveUntil(
+                          MaterialPageRoute(
+                            builder: (_) => const NavigationWrapper(),
+                          ),
+                          (route) => false,
+                        );
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,

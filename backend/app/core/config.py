@@ -24,6 +24,7 @@ class Settings(BaseSettings):
     secret_key: str = "change-this-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
+    auto_verify_new_reports: bool = True
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_app/features/reporting/presentation/pages/detection_result_screen.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
@@ -94,13 +93,20 @@ class _HeaderSectionState extends State<_HeaderSection> {
   @override
   void didUpdateWidget(covariant _HeaderSection oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldId = oldWidget.state is AuthSuccess
-        ? (oldWidget.state as AuthSuccess).user.id
+    final oldUser = oldWidget.state is AuthSuccess
+        ? (oldWidget.state as AuthSuccess).user
         : null;
-    final newId = widget.state is AuthSuccess
-        ? (widget.state as AuthSuccess).user.id
+    final newUser = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user
         : null;
-    if (newId != null && newId != oldId) {
+    if (
+      newUser != null &&
+      (oldUser == null ||
+          newUser.id != oldUser.id ||
+          newUser.points != oldUser.points ||
+          newUser.totalReports != oldUser.totalReports ||
+          newUser.verifiedReports != oldUser.verifiedReports)
+    ) {
       _loadRank();
     }
   }
@@ -448,7 +454,7 @@ class _ReportDamageActionState extends State<_ReportDamageAction> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (context) => const DetectionResultScreen(),
+            builder: (context) => const CameraScreen(),
           ),
         );
       },
@@ -582,13 +588,20 @@ class _QuickStatsRowState extends State<_QuickStatsRow> {
   @override
   void didUpdateWidget(covariant _QuickStatsRow oldWidget) {
     super.didUpdateWidget(oldWidget);
-    final oldId = oldWidget.state is AuthSuccess
-        ? (oldWidget.state as AuthSuccess).user.id
+    final oldUser = oldWidget.state is AuthSuccess
+        ? (oldWidget.state as AuthSuccess).user
         : null;
-    final newId = widget.state is AuthSuccess
-        ? (widget.state as AuthSuccess).user.id
+    final newUser = widget.state is AuthSuccess
+        ? (widget.state as AuthSuccess).user
         : null;
-    if (newId != null && newId != oldId) {
+    if (
+      newUser != null &&
+      (oldUser == null ||
+          newUser.id != oldUser.id ||
+          newUser.points != oldUser.points ||
+          newUser.totalReports != oldUser.totalReports ||
+          newUser.verifiedReports != oldUser.verifiedReports)
+    ) {
       _loadStats();
     }
   }

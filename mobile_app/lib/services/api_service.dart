@@ -39,6 +39,26 @@ class ApiService {
 
   ApiService(this._supabase);
 
+  Future<Map<String, dynamic>> getMyPreferences() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/me/preferences'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw ApiException(
+          'Failed to fetch user preferences',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get user preferences: $e');
+    }
+  }
+
   /// Get Supabase JWT token from current session
   Future<String?> _getAuthToken() async {
     try {
@@ -96,8 +116,8 @@ class ApiService {
       final queryParams = {
         if (page != null) 'page': page.toString(),
         if (pageSize != null) 'page_size': pageSize.toString(),
-        if (status != null) 'status': status,
-        if (username != null) 'username': username,
+        ...?status == null ? null : {'status': status},
+        ...?username == null ? null : {'username': username},
       };
 
       final uri = Uri.parse(
@@ -119,6 +139,40 @@ class ApiService {
       }
     } catch (e) {
       throw ApiException('Failed to get reports: $e');
+    }
+  }
+
+  Future<List<Report>> getMyReports({
+    int? page,
+    int? pageSize,
+    String? status,
+  }) async {
+    try {
+      final queryParams = {
+        if (page != null) 'page': page.toString(),
+        if (pageSize != null) 'page_size': pageSize.toString(),
+        ...?status == null ? null : {'status': status},
+      };
+
+      final uri = Uri.parse(
+        '$baseUrl/users/me/reports',
+      ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
+
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => Report.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch your reports',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get my reports: $e');
     }
   }
 
@@ -204,8 +258,18 @@ class ApiService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Report.fromJson(jsonDecode(response.body));
       } else {
+        String message = 'Failed to create report';
+        try {
+          final payload = jsonDecode(response.body) as Map<String, dynamic>;
+          final detail = payload['detail'] as String?;
+          if (detail != null && detail.trim().isNotEmpty) {
+            message = detail;
+          }
+        } catch (_) {
+          // Keep fallback message if the response body is not JSON.
+        }
         throw ApiException(
-          'Failed to create report',
+          message,
           statusCode: response.statusCode,
         );
       }
@@ -293,10 +357,10 @@ class ApiService {
   }) async {
     try {
       final body = jsonEncode({
-        if (username != null) 'username': username,
-        if (avatarUrl != null) 'avatar_url': avatarUrl,
-        if (fullName != null) 'full_name': fullName,
-        if (bio != null) 'bio': bio,
+        ...?username == null ? null : {'username': username},
+        ...?avatarUrl == null ? null : {'avatar_url': avatarUrl},
+        ...?fullName == null ? null : {'full_name': fullName},
+        ...?bio == null ? null : {'bio': bio},
       });
 
       final response = await http.patch(
@@ -475,6 +539,57 @@ class ApiService {
     }
   }
 
+  // ============ BADGES ENDPOINTS ============
+
+  Future<List<Badge>> getMyBadges() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/badges/me/awards'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => Badge.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch badges',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get badges: $e');
+    }
+  }
+
+  // ============ POINTS ENDPOINTS ============
+
+  Future<List<PointTransaction>> getMyPointsHistory({int? limit}) async {
+    try {
+      final uri = Uri.parse('$baseUrl/points/me/history').replace(
+        queryParameters: limit != null ? {'limit': limit.toString()} : null,
+      );
+
+      final response = await http.get(uri, headers: await _getHeaders());
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        return data
+            .map((json) => PointTransaction.fromJson(json as Map<String, dynamic>))
+            .toList();
+      } else {
+        throw ApiException(
+          'Failed to fetch point history',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get point history: $e');
+    }
+  }
+
   // ============ STORAGE ENDPOINTS (Supabase) ============
 
   /// Upload image to Supabase Storage (reports-images bucket)
@@ -482,6 +597,7 @@ class ApiService {
   Future<String> uploadReportImage({
     required String fileName,
     required List<int> fileBytes,
+    String? storagePath,
   }) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -489,21 +605,29 @@ class ApiService {
         throw ApiException('User not authenticated');
       }
 
-      // Storage path: reports-images/{userId}/{fileName}
-      final storagePath = 'reports-images/$userId/$fileName';
+      // Storage path inside the bucket: {userId}/{fileName}
+      final resolvedStoragePath = storagePath ?? '$userId/$fileName';
 
       await _supabase.storage
           .from('reports-images')
-          .uploadBinary(storagePath, Uint8List.fromList(fileBytes));
+          .uploadBinary(resolvedStoragePath, Uint8List.fromList(fileBytes));
 
       // Get public URL
       final publicUrl = _supabase.storage
           .from('reports-images')
-          .getPublicUrl(storagePath);
+          .getPublicUrl(resolvedStoragePath);
 
       return publicUrl;
     } catch (e) {
       throw ApiException('Failed to upload image: $e');
+    }
+  }
+
+  Future<void> deleteReportImage(String storagePath) async {
+    try {
+      await _supabase.storage.from('reports-images').remove([storagePath]);
+    } catch (e) {
+      throw ApiException('Failed to delete uploaded image: $e');
     }
   }
 
@@ -518,8 +642,8 @@ class ApiService {
         throw ApiException('User not authenticated');
       }
 
-      // Storage path: avatars/{userId}/{fileName}
-      final storagePath = 'avatars/$userId/$fileName';
+      // Storage path inside the bucket: {userId}/{fileName}
+      final storagePath = '$userId/$fileName';
 
       await _supabase.storage
           .from('avatars')

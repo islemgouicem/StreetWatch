@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/features/auth/presentation/pages/onboarding_screen.dart';
+import 'package:mobile_app/navigation/navigation_wrapper.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +18,11 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _logoController;
   late final AnimationController _sparkleController;
   Timer? _timer;
+
+  Widget _nextScreen() {
+    final hasSession = Supabase.instance.client.auth.currentSession != null;
+    return hasSession ? const NavigationWrapper() : const OnboardingScreen();
+  }
 
   @override
   void initState() {
@@ -36,7 +43,7 @@ class _SplashScreenState extends State<SplashScreen>
         return;
       }
       Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
+        MaterialPageRoute(builder: (_) => _nextScreen()),
       );
     });
   }

@@ -40,10 +40,12 @@ async def get_leaderboard(
         leaderboard.append(
             LeaderboardEntry(
                 rank=index,
+                id=user_id,
                 user_id=user_id,
                 username=user.get("username") or "Anonymous",
                 avatar_url=user.get("avatar_url"),
                 points=int(user.get("points") or 0),
+                total_reports=reports_count,
                 reports_count=reports_count,
                 verified_reports=verified_reports,
                 votes_cast=votes_cast,
