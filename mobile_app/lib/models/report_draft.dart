@@ -5,6 +5,7 @@ class ReportDraft {
   final String? description;
   final double? latitude;
   final double? longitude;
+  final List<Map<String, dynamic>>? boundingBoxes;
 
   const ReportDraft({
     required this.imagePath,
@@ -13,6 +14,7 @@ class ReportDraft {
     this.description,
     this.latitude,
     this.longitude,
+    this.boundingBoxes,
   });
 
   ReportDraft copyWith({
@@ -22,6 +24,7 @@ class ReportDraft {
     String? description,
     double? latitude,
     double? longitude,
+    List<Map<String, dynamic>>? boundingBoxes,
   }) {
     return ReportDraft(
       imagePath: imagePath ?? this.imagePath,
@@ -30,6 +33,7 @@ class ReportDraft {
       description: description ?? this.description,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,
+      boundingBoxes: boundingBoxes ?? this.boundingBoxes,
     );
   }
 }

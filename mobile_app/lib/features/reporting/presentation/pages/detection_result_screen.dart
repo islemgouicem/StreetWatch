@@ -39,6 +39,12 @@ class _DetectionResultScreenState extends State<DetectionResultScreen> {
     _severity = widget.draft.severity;
   }
 
+  double get _topConfidence {
+    final boxes = widget.draft.boundingBoxes;
+    if (boxes == null || boxes.isEmpty) return 0.0;
+    return (boxes.first['score'] as double?) ?? 0.0;
+  }
+
   String _labelize(String value) {
     return value
         .split('_')
@@ -58,18 +64,29 @@ class _DetectionResultScreenState extends State<DetectionResultScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
               child: Column(
                 children: [
-                  _CapturedImageCard(imagePath: widget.draft.imagePath),
+                  _CapturedImageCard(
+                    imagePath: widget.draft.imagePath,
+                    boundingBoxes: widget.draft.boundingBoxes,
+                  ),
+                  const SizedBox(height: 20),
+                  const _ModelDetailsCard(),
                   const SizedBox(height: 20),
                   _DetectionDetailsCard(
                     damageType: _damageType,
                     severity: _severity,
-                    onDamageTypeChanged: (value) => setState(() => _damageType = value),
-                    onSeverityChanged: (value) => setState(() => _severity = value),
-                    damageTypes: _damageTypes,
-                    severityLevels: _severityLevels,
+                    confidence: _topConfidence,
                     labelize: _labelize,
                   ),
                   const SizedBox(height: 20),
+                  if (widget.draft.boundingBoxes != null &&
+                      widget.draft.boundingBoxes!.isNotEmpty)
+                    _AllDetectionsCard(
+                      boxes: widget.draft.boundingBoxes!,
+                      labelize: _labelize,
+                    ),
+                  if (widget.draft.boundingBoxes != null &&
+                      widget.draft.boundingBoxes!.isNotEmpty)
+                    const SizedBox(height: 20),
                   const _XpRewardCard(),
                   const SizedBox(height: 20),
                   const _NextStepInformation(),
@@ -148,7 +165,7 @@ class _HeaderSection extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               Text(
-                'Review Damage',
+                'AI Analysis Complete',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 28,
@@ -156,13 +173,37 @@ class _HeaderSection extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 8),
-              Text(
-                'AI comes later, choose the issue details now',
-                style: GoogleFonts.outfit(
-                  color: Colors.white.withOpacity(0.9),
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Text(
+                      'AI',
+                      style: GoogleFonts.outfit(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'The model identified the issue.',
+                    style: GoogleFonts.outfit(
+                      color: Colors.white.withOpacity(0.9),
+                      fontSize: 16,
+                      fontWeight: FontWeight.w400,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -174,21 +215,19 @@ class _HeaderSection extends StatelessWidget {
 
 class _CapturedImageCard extends StatelessWidget {
   final String imagePath;
+  final List<Map<String, dynamic>>? boundingBoxes;
 
-  const _CapturedImageCard({required this.imagePath});
+  const _CapturedImageCard({required this.imagePath, this.boundingBoxes});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       height: 220,
       width: double.infinity,
+      clipBehavior: Clip.antiAlias,
       decoration: BoxDecoration(
-        color: Colors.white,
+        color: Colors.black,
         borderRadius: BorderRadius.circular(24),
-        image: DecorationImage(
-          image: FileImage(File(imagePath)),
-          fit: BoxFit.cover,
-        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -197,26 +236,77 @@ class _CapturedImageCard extends StatelessWidget {
           ),
         ],
       ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          Image.file(File(imagePath), fit: BoxFit.cover),
+          if (boundingBoxes != null && boundingBoxes!.isNotEmpty)
+            CustomPaint(painter: _BoundingBoxPainter(boxes: boundingBoxes!)),
+        ],
+      ),
     );
   }
+}
+
+class _BoundingBoxPainter extends CustomPainter {
+  final List<Map<String, dynamic>> boxes;
+
+  _BoundingBoxPainter({required this.boxes});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0
+      ..color = const Color(0xFFEF4444);
+
+    final bgPaint = Paint()..color = const Color(0xFFEF4444);
+    final textPainter = TextPainter(textDirection: TextDirection.ltr);
+
+    for (var box in boxes) {
+      double left = box['left'] * size.width;
+      double top = box['top'] * size.height;
+      double width = box['width'] * size.width;
+      double height = box['height'] * size.height;
+
+      final rect = Rect.fromLTWH(left, top, width, height);
+      canvas.drawRect(rect, paint);
+
+      textPainter.text = TextSpan(
+        text: ' ${box['label']} ${(box['score'] * 100).toStringAsFixed(0)}% ',
+        style: const TextStyle(
+          color: Colors.white,
+          fontSize: 10,
+          fontWeight: FontWeight.bold,
+        ),
+      );
+      textPainter.layout();
+
+      // Draw label background
+      final labelY = top > 16 ? top - 16 : top + height;
+      canvas.drawRect(
+        Rect.fromLTWH(left, labelY, textPainter.width, textPainter.height),
+        bgPaint,
+      );
+
+      textPainter.paint(canvas, Offset(left, labelY));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => true;
 }
 
 class _DetectionDetailsCard extends StatelessWidget {
   final String damageType;
   final String severity;
-  final ValueChanged<String> onDamageTypeChanged;
-  final ValueChanged<String> onSeverityChanged;
-  final List<String> damageTypes;
-  final List<String> severityLevels;
+  final double confidence;
   final String Function(String) labelize;
 
   const _DetectionDetailsCard({
     required this.damageType,
     required this.severity,
-    required this.onDamageTypeChanged,
-    required this.onSeverityChanged,
-    required this.damageTypes,
-    required this.severityLevels,
+    required this.confidence,
     required this.labelize,
   });
 
@@ -238,58 +328,73 @@ class _DetectionDetailsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            'Report Details',
-            style: GoogleFonts.outfit(
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-              color: const Color(0xFF1A1A1A),
-            ),
-          ),
-          const SizedBox(height: 20),
-          DropdownButtonFormField<String>(
-            value: damageType,
-            items: damageTypes
-                .map((value) => DropdownMenuItem(value: value, child: Text(labelize(value))))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                onDamageTypeChanged(value);
-              }
-            },
-            decoration: const InputDecoration(
-              labelText: 'Damage type',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 16),
-          DropdownButtonFormField<String>(
-            value: severity,
-            items: severityLevels
-                .map((value) => DropdownMenuItem(value: value, child: Text(labelize(value))))
-                .toList(),
-            onChanged: (value) {
-              if (value != null) {
-                onSeverityChanged(value);
-              }
-            },
-            decoration: const InputDecoration(
-              labelText: 'Severity',
-              border: OutlineInputBorder(),
-            ),
-          ),
-          const SizedBox(height: 20),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Detection confidence',
+              Text(
+                labelize(damageType),
+                style: GoogleFonts.outfit(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1A1A1A),
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: severity == 'high'
+                      ? const Color(0xFFFEF2F2)
+                      : const Color(0xFFFFF7ED),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      severity == 'high'
+                          ? Icons.error_outline
+                          : Icons.warning_amber_rounded,
+                      color: severity == 'high'
+                          ? const Color(0xFFDC2626)
+                          : const Color(0xFFEA580C),
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      labelize(severity),
+                      style: GoogleFonts.outfit(
+                        color: severity == 'high'
+                            ? const Color(0xFFDC2626)
+                            : const Color(0xFFEA580C),
+                        fontWeight: FontWeight.w600,
+                        fontSize: 14,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 24),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 16),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                'AI Confidence',
                 style: TextStyle(color: Colors.grey, fontSize: 14),
               ),
               Text(
-                'Manual review',
+                '${(confidence * 100).toStringAsFixed(1)}%',
                 style: GoogleFonts.outfit(
-                  color: AppTheme.successGreen,
+                  color: confidence >= 0.7
+                      ? AppTheme.successGreen
+                      : confidence >= 0.5
+                      ? const Color(0xFFEA580C)
+                      : const Color(0xFF64748B),
                   fontWeight: FontWeight.bold,
                   fontSize: 14,
                 ),
@@ -300,13 +405,190 @@ class _DetectionDetailsCard extends StatelessWidget {
           LinearPercentIndicator(
             padding: EdgeInsets.zero,
             lineHeight: 12,
-            percent: 1,
+            percent: confidence.clamp(0.0, 1.0),
             animation: true,
             animationDuration: 700,
             barRadius: const Radius.circular(10),
             progressColor: AppTheme.successGreen,
             backgroundColor: Colors.grey.withOpacity(0.1),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ModelDetailsCard extends StatelessWidget {
+  const _ModelDetailsCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: const Color(0xFFF8FAFC),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF3B82F6).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(
+                  Icons.smart_toy,
+                  color: Color(0xFF3B82F6),
+                  size: 20,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Model Details',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _modelInfoRow('Architecture', 'YOLOv8n'),
+          const SizedBox(height: 8),
+          _modelInfoRow('Input Size', '320 × 320 px'),
+          const SizedBox(height: 8),
+          _modelInfoRow('Classes', '5 (RDD2022)'),
+          const SizedBox(height: 8),
+          _modelInfoRow('Format', 'TFLite (Float32)'),
+          const SizedBox(height: 8),
+          _modelInfoRow('NMS Threshold', '0.45'),
+          const SizedBox(height: 8),
+          _modelInfoRow('Confidence Threshold', '0.45'),
+        ],
+      ),
+    );
+  }
+
+  Widget _modelInfoRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: GoogleFonts.outfit(
+            color: const Color(0xFF64748B),
+            fontSize: 13,
+          ),
+        ),
+        Text(
+          value,
+          style: GoogleFonts.outfit(
+            color: const Color(0xFF1E293B),
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AllDetectionsCard extends StatelessWidget {
+  final List<Map<String, dynamic>> boxes;
+  final String Function(String) labelize;
+
+  const _AllDetectionsCard({required this.boxes, required this.labelize});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: const Color(0xFFF1F5F9)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.03),
+            blurRadius: 12,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.list_alt, color: Color(0xFF3B82F6), size: 20),
+              const SizedBox(width: 8),
+              Text(
+                'All Detections (${boxes.length})',
+                style: GoogleFonts.outfit(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                  color: const Color(0xFF1E293B),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ...boxes.asMap().entries.map((entry) {
+            final i = entry.key;
+            final box = entry.value;
+            final label = labelize(box['label'] as String);
+            final score = ((box['score'] as double) * 100).toStringAsFixed(1);
+            return Padding(
+              padding: EdgeInsets.only(top: i == 0 ? 0 : 8),
+              child: Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF8FAFC),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 8,
+                      height: 8,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFFEF4444),
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        label,
+                        style: GoogleFonts.outfit(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: const Color(0xFF1E293B),
+                        ),
+                      ),
+                    ),
+                    Text(
+                      '$score%',
+                      style: GoogleFonts.outfit(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF3B82F6),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
         ],
       ),
     );
@@ -391,7 +673,8 @@ class _NextStepInformation extends StatelessWidget {
               style: TextStyle(fontWeight: FontWeight.bold),
             ),
             TextSpan(
-              text: 'Confirm the location and submit your report to the live backend.',
+              text:
+                  'Confirm the location and submit your report to the live backend.',
             ),
           ],
         ),
@@ -445,7 +728,10 @@ class _BottomActionSection extends StatelessWidget {
                   children: [
                     Text(
                       'Continue',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                     SizedBox(width: 8),
                     Icon(Icons.arrow_forward, size: 20),
@@ -465,7 +751,12 @@ class _HeaderClipper extends CustomClipper<Path> {
   Path getClip(Size size) {
     final path = Path();
     path.lineTo(0, size.height - 40);
-    path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 40);
+    path.quadraticBezierTo(
+      size.width / 2,
+      size.height,
+      size.width,
+      size.height - 40,
+    );
     path.lineTo(size.width, 0);
     path.close();
     return path;
