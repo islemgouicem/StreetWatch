@@ -39,6 +39,26 @@ class ApiService {
 
   ApiService(this._supabase);
 
+  Future<Map<String, dynamic>> getMyPreferences() async {
+    try {
+      final response = await http.get(
+        Uri.parse('$baseUrl/users/me/preferences'),
+        headers: await _getHeaders(),
+      );
+
+      if (response.statusCode == 200) {
+        return jsonDecode(response.body) as Map<String, dynamic>;
+      } else {
+        throw ApiException(
+          'Failed to fetch user preferences',
+          statusCode: response.statusCode,
+        );
+      }
+    } catch (e) {
+      throw ApiException('Failed to get user preferences: $e');
+    }
+  }
+
   /// Get Supabase JWT token from current session
   Future<String?> _getAuthToken() async {
     try {
@@ -238,8 +258,18 @@ class ApiService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Report.fromJson(jsonDecode(response.body));
       } else {
+        String message = 'Failed to create report';
+        try {
+          final payload = jsonDecode(response.body) as Map<String, dynamic>;
+          final detail = payload['detail'] as String?;
+          if (detail != null && detail.trim().isNotEmpty) {
+            message = detail;
+          }
+        } catch (_) {
+          // Keep fallback message if the response body is not JSON.
+        }
         throw ApiException(
-          'Failed to create report',
+          message,
           statusCode: response.statusCode,
         );
       }
@@ -567,6 +597,7 @@ class ApiService {
   Future<String> uploadReportImage({
     required String fileName,
     required List<int> fileBytes,
+    String? storagePath,
   }) async {
     try {
       final userId = _supabase.auth.currentUser?.id;
@@ -575,20 +606,28 @@ class ApiService {
       }
 
       // Storage path inside the bucket: {userId}/{fileName}
-      final storagePath = '$userId/$fileName';
+      final resolvedStoragePath = storagePath ?? '$userId/$fileName';
 
       await _supabase.storage
           .from('reports-images')
-          .uploadBinary(storagePath, Uint8List.fromList(fileBytes));
+          .uploadBinary(resolvedStoragePath, Uint8List.fromList(fileBytes));
 
       // Get public URL
       final publicUrl = _supabase.storage
           .from('reports-images')
-          .getPublicUrl(storagePath);
+          .getPublicUrl(resolvedStoragePath);
 
       return publicUrl;
     } catch (e) {
       throw ApiException('Failed to upload image: $e');
+    }
+  }
+
+  Future<void> deleteReportImage(String storagePath) async {
+    try {
+      await _supabase.storage.from('reports-images').remove([storagePath]);
+    } catch (e) {
+      throw ApiException('Failed to delete uploaded image: $e');
     }
   }
 

@@ -16,6 +16,7 @@ class _SecurityPrivacyScreenState extends State<SecurityPrivacyScreen> {
   bool biometricLock = true;
   bool locationMasking = true;
   bool _isSaving = false;
+  bool _isLoading = true;
   late ApiService _apiService;
 
   @override
@@ -23,6 +24,27 @@ class _SecurityPrivacyScreenState extends State<SecurityPrivacyScreen> {
     super.initState();
     final supabase = Supabase.instance.client;
     _apiService = ApiService(supabase);
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final preferences = await _apiService.getMyPreferences();
+      final security =
+          preferences['security'] as Map<String, dynamic>? ?? const {};
+      if (!mounted) return;
+      setState(() {
+        twoFactor = security['two_factor_enabled'] as bool? ?? false;
+        biometricLock = security['biometric_lock'] as bool? ?? false;
+        locationMasking = security['location_masking'] as bool? ?? false;
+      });
+    } catch (_) {
+      // Keep defaults if loading fails.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _updateSecuritySettings() async {
@@ -64,7 +86,9 @@ class _SecurityPrivacyScreenState extends State<SecurityPrivacyScreen> {
     return SettingsPageShell(
       title: 'Security & Privacy',
       subtitle: 'Password and privacy settings',
-      child: ListView(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         children: [
           Container(

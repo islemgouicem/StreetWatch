@@ -22,6 +22,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
   late final ApiService _apiService;
   List<app_models.Badge> _badges = const [];
   List<PointTransaction> _pointHistory = const [];
+  String? _lastGamificationRefreshKey;
 
   String _fallbackDisplayName() {
     final currentUser = Supabase.instance.client.auth.currentUser;
@@ -102,6 +103,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
       backgroundColor: const Color(0xFFF8FAFC),
       body: BlocBuilder<AuthBloc, AuthState>(
         builder: (context, state) {
+          if (state is AuthSuccess) {
+            final refreshKey =
+                '${state.user.id}:${state.user.points}:${state.user.totalReports}:${state.user.verifiedReports}';
+            if (_lastGamificationRefreshKey != refreshKey) {
+              _lastGamificationRefreshKey = refreshKey;
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  _loadGamificationData();
+                }
+              });
+            }
+          }
+
           final points = state is AuthSuccess ? state.user.points : 0;
           final totalReports = state is AuthSuccess
               ? state.user.totalReports

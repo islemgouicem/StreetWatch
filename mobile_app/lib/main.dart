@@ -35,9 +35,7 @@ class MyApp extends StatelessWidget {
       providers: [
         BlocProvider<AuthBloc>(create: (_) => AuthBloc(apiService)),
         BlocProvider<ReportsBloc>(create: (_) => ReportsBloc(apiService)),
-        BlocProvider<LeaderboardBloc>(
-          create: (_) => LeaderboardBloc(apiService),
-        ),
+        BlocProvider<LeaderboardBloc>(create: (_) => LeaderboardBloc(apiService)),
         BlocProvider<UserBloc>(create: (_) => UserBloc(apiService)),
       ],
       child: MaterialApp(

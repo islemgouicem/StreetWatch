@@ -14,6 +14,7 @@ class AppearanceSettingsScreen extends StatefulWidget {
 class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
   int selectedTheme = 0;
   bool _isSaving = false;
+  bool _isLoading = true;
   late ApiService _apiService;
 
   final themes = const [
@@ -27,6 +28,28 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     super.initState();
     final supabase = Supabase.instance.client;
     _apiService = ApiService(supabase);
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    const themeNames = ['classic_blue', 'civic_green', 'sunset_orange'];
+    try {
+      final preferences = await _apiService.getMyPreferences();
+      final appearance =
+          preferences['appearance'] as Map<String, dynamic>? ?? const {};
+      final backendTheme = appearance['theme'] as String?;
+      final index = themeNames.indexOf(backendTheme ?? '');
+      if (!mounted) return;
+      setState(() {
+        selectedTheme = index >= 0 ? index : 0;
+      });
+    } catch (_) {
+      // Keep defaults if loading fails.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _updateTheme(int themeIndex) async {
@@ -69,7 +92,9 @@ class _AppearanceSettingsScreenState extends State<AppearanceSettingsScreen> {
     return SettingsPageShell(
       title: 'Appearance',
       subtitle: 'Customize your theme',
-      child: ListView(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         children: [
           Container(

@@ -7,7 +7,7 @@ const apiBaseUrl = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.tr
 
 const allDamageTypes: DamageType[] = ['Pothole', 'Crack', 'Broken Sign', 'Flooding', 'Debris', 'Other']
 const allSeverityLevels: Severity[] = ['Low', 'Medium', 'High']
-const allStatuses: ReportStatus[] = ['Verified', 'Rejected', 'Resolved']
+const allStatuses: ReportStatus[] = ['Pending', 'Under Review', 'Verified', 'Resolved', 'Rejected']
 
 type GeoJsonFeature = {
   geometry: { coordinates: [number, number] }
@@ -26,6 +26,8 @@ type GeoJsonFeature = {
 
 type ReportsStatsResponse = {
   total_reports: number
+  pending_reports: number
+  under_review_reports: number
   verified_reports: number
   rejected_reports: number
   resolved_reports: number
@@ -37,6 +39,10 @@ function titleizeEnum(value: string): string {
     .split('_')
     .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
     .join(' ') as DamageType | Severity | ReportStatus
+}
+
+function enumToApiValue(value: string): string {
+  return value.toLowerCase().replaceAll(' ', '_')
 }
 
 function toDateFrom(range: 'all' | 'today' | 'week'): string | null {
@@ -81,7 +87,7 @@ function buildQueryParams({
     params.set('date_from', dateFrom)
   }
 
-  params.set('status', status.toLowerCase())
+  params.set('status', enumToApiValue(status))
   return params
 }
 
@@ -153,6 +159,8 @@ function App() {
   const [stats, setStats] = useState<ReportStats>({
     totalReports: 0,
     highSeverityReports: 0,
+    pendingReports: 0,
+    underReviewReports: 0,
     verifiedReports: 0,
     resolvedReports: 0,
     rejectedReports: 0,
@@ -196,6 +204,8 @@ function App() {
             return {
               totalReports: accumulator.totalReports + current.total_reports,
               highSeverityReports: accumulator.highSeverityReports + highSeverityCount,
+              pendingReports: accumulator.pendingReports + current.pending_reports,
+              underReviewReports: accumulator.underReviewReports + current.under_review_reports,
               verifiedReports: accumulator.verifiedReports + current.verified_reports,
               resolvedReports: accumulator.resolvedReports + current.resolved_reports,
               rejectedReports: accumulator.rejectedReports + current.rejected_reports,
@@ -204,6 +214,8 @@ function App() {
           {
             totalReports: 0,
             highSeverityReports: 0,
+            pendingReports: 0,
+            underReviewReports: 0,
             verifiedReports: 0,
             resolvedReports: 0,
             rejectedReports: 0,
@@ -225,6 +237,8 @@ function App() {
           setStats({
             totalReports: 0,
             highSeverityReports: 0,
+            pendingReports: 0,
+            underReviewReports: 0,
             verifiedReports: 0,
             resolvedReports: 0,
             rejectedReports: 0,
@@ -273,8 +287,8 @@ function App() {
           </div>
 
           <p className="hero-description">
-            Explore verified, rejected, and resolved citizen reports directly from the FastAPI and
-            Supabase backend with live filters and map statistics.
+            Explore newly submitted, verified, under-review, and resolved citizen reports directly
+            from the FastAPI and Supabase backend with live filters and map statistics.
           </p>
 
           <div className="hero-metrics">
@@ -330,8 +344,8 @@ function App() {
         </article>
         <article className="stat-card">
           <span className="stat-icon">◌</span>
-          <strong>{stats.resolvedReports + stats.rejectedReports}</strong>
-          <span>Closed outcomes</span>
+          <strong>{stats.pendingReports + stats.underReviewReports}</strong>
+          <span>Awaiting review</span>
         </article>
       </section>
 

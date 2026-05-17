@@ -78,6 +78,9 @@ class _EditProfileSettingsScreenState extends State<EditProfileSettingsScreen> {
 
       _nameController.text = (user.fullName ?? user.username ?? '').trim();
       _usernameController.text = (user.username ?? '').trim();
+      _bioController.text = (user.bio ?? '').trim().isNotEmpty
+          ? user.bio!.trim()
+          : _bioController.text;
     } catch (_) {
       // Keep empty fields if fetch fails; save flow still works.
     } finally {
@@ -101,6 +104,7 @@ class _EditProfileSettingsScreenState extends State<EditProfileSettingsScreen> {
       await _apiService.updateUser(
         fullName: _nameController.text,
         username: _usernameController.text,
+        bio: _bioController.text.trim(),
       );
 
       if (mounted) {

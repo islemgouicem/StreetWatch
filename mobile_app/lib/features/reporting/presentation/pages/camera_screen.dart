@@ -1,8 +1,8 @@
+import 'dart:io';
 import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_app/models/index.dart';
-
+import 'package:mobile_app/services/tflite_service.dart';
 import 'detection_result_screen.dart';
 
 class CameraScreen extends StatefulWidget {
@@ -15,12 +15,14 @@ class CameraScreen extends StatefulWidget {
 class _CameraScreenState extends State<CameraScreen> {
   CameraController? _controller;
   bool _isCameraInitialized = false;
-  bool _isCapturing = false;
+  final TfliteService _tfliteService = TfliteService();
+  bool _isProcessing = false;
 
   @override
   void initState() {
     super.initState();
     _initializeCamera();
+    _tfliteService.loadModel();
   }
 
   Future<void> _initializeCamera() async {
@@ -29,56 +31,55 @@ class _CameraScreenState extends State<CameraScreen> {
       if (cameras.isEmpty) return;
 
       _controller = CameraController(
-        cameras.first,
+        cameras[0],
         ResolutionPreset.high,
         enableAudio: false,
       );
 
       await _controller!.initialize();
-      if (!mounted) return;
-      setState(() {
-        _isCameraInitialized = true;
-      });
+      if (mounted) {
+        setState(() {
+          _isCameraInitialized = true;
+        });
+      }
     } catch (e) {
       debugPrint('Camera initialization error: $e');
     }
   }
 
-  Future<void> _captureAndContinue() async {
-    final controller = _controller;
-    if (controller == null || !controller.value.isInitialized || _isCapturing) {
+  Future<void> _captureAndDetect() async {
+    if (_controller == null || !_controller!.value.isInitialized || _isProcessing) {
       return;
     }
 
     setState(() {
-      _isCapturing = true;
+      _isProcessing = true;
     });
 
     try {
-      final picture = await controller.takePicture();
-      if (!mounted) return;
+      final XFile image = await _controller!.takePicture();
+      final File imageFile = File(image.path);
 
-      final draft = ReportDraft(
-        imagePath: picture.path,
-        damageType: 'pothole',
-        severity: 'medium',
-      );
+      // Run inference
+      final recognitions = await _tfliteService.runInference(imageFile);
 
-      await Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => DetectionResultScreen(draft: draft),
-        ),
-      );
+      if (mounted) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => DetectionResultScreen(
+              recognitions: recognitions,
+              imagePath: image.path,
+            ),
+          ),
+        );
+      }
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to capture image: $e')),
-      );
+      debugPrint('Error during capture/detection: $e');
     } finally {
       if (mounted) {
         setState(() {
-          _isCapturing = false;
+          _isProcessing = false;
         });
       }
     }
@@ -87,6 +88,7 @@ class _CameraScreenState extends State<CameraScreen> {
   @override
   void dispose() {
     _controller?.dispose();
+    _tfliteService.close();
     super.dispose();
   }
 
@@ -103,14 +105,41 @@ class _CameraScreenState extends State<CameraScreen> {
       backgroundColor: Colors.black,
       body: Stack(
         children: [
-          Positioned.fill(child: CameraPreview(_controller!)),
-          const _GridOverlay(),
-          const _DetectionFrameOverlay(),
-          const _TopStatusSection(),
-          _BottomActionSection(
-            isCapturing: _isCapturing,
-            onCapture: _captureAndContinue,
+          // Camera Preview
+          Positioned.fill(
+            child: CameraPreview(_controller!),
           ),
+
+          // Grid Lines Overlay
+          const _GridOverlay(),
+
+          // Detection Frame
+          const _DetectionFrameOverlay(),
+
+          // Top Status Tags
+          const _TopStatusSection(),
+
+          // Processing Indicator
+          if (_isProcessing)
+            Container(
+              color: Colors.black54,
+              child: const Center(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    CircularProgressIndicator(color: Colors.white),
+                    SizedBox(height: 16),
+                    Text(
+                      'Analyzing road surface...',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+          // Bottom Action Bar
+          _BottomActionSection(onCapture: _captureAndDetect),
         ],
       ),
     );
@@ -126,11 +155,11 @@ class _GridOverlay extends StatelessWidget {
       child: Column(
         children: List.generate(
           4,
-          (_) => Expanded(
+          (index) => Expanded(
             child: Row(
               children: List.generate(
                 3,
-                (_) => Expanded(
+                (index) => Expanded(
                   child: Container(
                     decoration: BoxDecoration(
                       border: Border.all(
@@ -167,10 +196,13 @@ class _DetectionFrameOverlay extends StatelessWidget {
         ),
         child: Stack(
           children: [
+            // Corners
             _buildCorner(top: 0, left: 0, rotation: 0),
             _buildCorner(top: 0, right: 0, rotation: 1.57),
             _buildCorner(bottom: 0, left: 0, rotation: 4.71),
             _buildCorner(bottom: 0, right: 0, rotation: 3.14),
+            
+            // Preview Label
             Center(
               child: Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -179,7 +211,7 @@ class _DetectionFrameOverlay extends StatelessWidget {
                   borderRadius: BorderRadius.circular(4),
                 ),
                 child: Text(
-                  'Frame the road issue',
+                  'Preview',
                   style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontSize: 12,
@@ -228,17 +260,17 @@ class _TopStatusSection extends StatelessWidget {
       left: 20,
       right: 20,
       child: Row(
-        children: const [
+        children: [
           _StatusTag(
             icon: Icons.location_on,
-            label: 'GPS on submit',
-            color: Color(0xFF22C55E),
+            label: 'GPS Active',
+            color: const Color(0xFF22C55E),
           ),
-          SizedBox(width: 12),
+          const SizedBox(width: 12),
           _StatusTag(
             icon: Icons.bolt,
-            label: 'AI later',
-            color: Color(0xFF84CC16),
+            label: 'AI Ready',
+            color: const Color(0xFF84CC16),
           ),
         ],
       ),
@@ -280,13 +312,8 @@ class _StatusTag extends StatelessWidget {
 }
 
 class _BottomActionSection extends StatelessWidget {
-  final bool isCapturing;
   final VoidCallback onCapture;
-
-  const _BottomActionSection({
-    required this.isCapturing,
-    required this.onCapture,
-  });
+  const _BottomActionSection({required this.onCapture});
 
   @override
   Widget build(BuildContext context) {
@@ -312,7 +339,7 @@ class _BottomActionSection extends StatelessWidget {
               ),
             ),
             GestureDetector(
-              onTap: isCapturing ? null : onCapture,
+              onTap: onCapture,
               child: Container(
                 width: 85,
                 height: 85,
@@ -326,12 +353,7 @@ class _BottomActionSection extends StatelessWidget {
                     color: Colors.white,
                     shape: BoxShape.circle,
                   ),
-                  child: isCapturing
-                      ? const Padding(
-                          padding: EdgeInsets.all(22),
-                          child: CircularProgressIndicator(strokeWidth: 3),
-                        )
-                      : const Icon(Icons.camera_alt, color: Colors.black, size: 40),
+                  child: const Icon(Icons.camera_alt, color: Colors.black, size: 40),
                 ),
               ),
             ),

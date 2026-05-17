@@ -14,15 +14,56 @@ class LanguageSettingsScreen extends StatefulWidget {
 class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
   String selected = 'English (US)';
   bool _isSaving = false;
+  bool _isLoading = true;
   late ApiService _apiService;
   
   final options = const ['English (US)', 'French', 'Arabic', 'Spanish'];
+
+  String _normalizeBackendLanguage(String? value) {
+    switch ((value ?? '').trim().toLowerCase()) {
+      case 'en':
+      case 'english':
+      case 'english (us)':
+        return 'English (US)';
+      case 'fr':
+      case 'french':
+        return 'French';
+      case 'ar':
+      case 'arabic':
+        return 'Arabic';
+      case 'es':
+      case 'spanish':
+        return 'Spanish';
+      default:
+        return selected;
+    }
+  }
 
   @override
   void initState() {
     super.initState();
     final supabase = Supabase.instance.client;
     _apiService = ApiService(supabase);
+    _loadPreferences();
+  }
+
+  Future<void> _loadPreferences() async {
+    try {
+      final preferences = await _apiService.getMyPreferences();
+      final language =
+          (preferences['language'] as Map<String, dynamic>? ?? const {})['language']
+              as String?;
+      if (!mounted) return;
+      setState(() {
+        selected = _normalizeBackendLanguage(language);
+      });
+    } catch (_) {
+      // Keep defaults if loading fails.
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
   }
 
   Future<void> _updateLanguage(String language) async {
@@ -60,7 +101,9 @@ class _LanguageSettingsScreenState extends State<LanguageSettingsScreen> {
     return SettingsPageShell(
       title: 'Language',
       subtitle: 'Choose your app language',
-      child: ListView(
+      child: _isLoading
+          ? const Center(child: CircularProgressIndicator())
+          : ListView(
         padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
         children: [
           Container(
