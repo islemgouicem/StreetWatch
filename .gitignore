@@ -4,6 +4,8 @@
 .packages
 pubspec.lock
 
+mobile_app/assets/mock/rdd_test_images/
+
 # Python
 __pycache__/
 *.pyc
