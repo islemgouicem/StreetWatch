@@ -8,7 +8,7 @@ export type DamageType =
 
 export type Severity = 'Low' | 'Medium' | 'High'
 
-export type ReportStatus = 'Verified' | 'Rejected' | 'Resolved'
+export type ReportStatus = 'Pending' | 'Under Review' | 'Verified' | 'Rejected' | 'Resolved'
 
 export type Report = {
   id: string
@@ -29,6 +29,8 @@ export type Report = {
 export type ReportStats = {
   totalReports: number
   highSeverityReports: number
+  pendingReports: number
+  underReviewReports: number
   verifiedReports: number
   resolvedReports: number
   rejectedReports: number

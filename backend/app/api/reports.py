@@ -27,6 +27,13 @@ from app.services.points import award_points
 
 router = APIRouter(prefix="/reports", tags=["reports"])
 
+DEFAULT_WEBMAP_STATUSES = [
+    ReportStatus.pending.value,
+    ReportStatus.under_review.value,
+    ReportStatus.verified.value,
+    ReportStatus.resolved.value,
+]
+
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     earth_radius_km = 6371.0
@@ -213,7 +220,7 @@ def _apply_report_filters(
     date_to: datetime | None,
 ) -> Any:
     if status_value is None:
-        query = query.in_("status", ["verified", "rejected"])
+        query = query.in_("status", DEFAULT_WEBMAP_STATUSES)
     else:
         query = query.eq("status", status_value.value)
 
