@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:mobile_app/features/reporting/presentation/pages/detection_result_screen.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/my_reports_screen.dart';
+import 'package:mobile_app/features/reporting/presentation/pages/camera_screen.dart';
 import 'package:percent_indicator/linear_percent_indicator.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/features/achievements/presentation/pages/missions_screen.dart';
 import 'package:mobile_app/features/Map/presentation/page/map.dart';
 import 'package:mobile_app/features/notifications/presentation/pages/notifications_screen.dart';
-import 'package:mobile_app/features/reporting/presentation/pages/camera_screen.dart';
 import 'package:mobile_app/bloc/index.dart';
 import 'package:mobile_app/models/index.dart';
 import 'package:mobile_app/services/api_service.dart';
@@ -447,9 +447,7 @@ class _ReportDamageActionState extends State<_ReportDamageAction> {
         setState(() => _isPressed = false);
         Navigator.push(
           context,
-          MaterialPageRoute(
-            builder: (context) => const DetectionResultScreen(),
-          ),
+          MaterialPageRoute(builder: (context) => const CameraScreen()),
         );
       },
       onTapCancel: () {

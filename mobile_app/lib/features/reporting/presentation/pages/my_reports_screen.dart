@@ -32,15 +32,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     });
 
     try {
-      final currentUserId = Supabase.instance.client.auth.currentUser?.id;
-      if (currentUserId == null) {
-        throw Exception('No authenticated user found');
-      }
-
-      final reports = await _apiService.getReports(page: 1, pageSize: 100);
-      final mine =
-          reports.where((report) => report.userId == currentUserId).toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      final mine = await _apiService.getMyReports(page: 1, pageSize: 100);
 
       if (!mounted) return;
       setState(() {

@@ -1,13 +1,139 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
+import 'package:mobile_app/models/index.dart';
+import 'package:mobile_app/services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+
 import 'submission_success_screen.dart';
 
-class ReviewSubmitScreen extends StatelessWidget {
-  const ReviewSubmitScreen({super.key});
+class ReviewSubmitScreen extends StatefulWidget {
+  final ReportDraft draft;
+
+  const ReviewSubmitScreen({super.key, required this.draft});
+
+  @override
+  State<ReviewSubmitScreen> createState() => _ReviewSubmitScreenState();
+}
+
+class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
+  late final ApiService _apiService;
+  late final TextEditingController _descriptionController;
+  bool _isLoadingLocation = true;
+  bool _isSubmitting = false;
+  String? _locationError;
+  Position? _position;
+
+  @override
+  void initState() {
+    super.initState();
+    _apiService = ApiService(Supabase.instance.client);
+    _descriptionController = TextEditingController(text: widget.draft.description ?? '');
+    _loadLocation();
+  }
+
+  Future<void> _loadLocation() async {
+    setState(() {
+      _isLoadingLocation = true;
+      _locationError = null;
+    });
+
+    try {
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+
+      if (permission == LocationPermission.denied || permission == LocationPermission.deniedForever) {
+        throw Exception('Location permission denied');
+      }
+
+      final position = await Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        _position = position;
+        _isLoadingLocation = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _locationError = e.toString();
+        _isLoadingLocation = false;
+      });
+    }
+  }
+
+  Future<void> _submitReport() async {
+    final position = _position;
+    if (position == null || _isSubmitting) {
+      return;
+    }
+
+    setState(() {
+      _isSubmitting = true;
+    });
+
+    try {
+      final imageFile = File(widget.draft.imagePath);
+      final bytes = await imageFile.readAsBytes();
+      final imageName = widget.draft.imagePath.split(Platform.pathSeparator).last;
+      final fileName =
+          '${DateTime.now().millisecondsSinceEpoch}_$imageName';
+
+      final imageUrl = await _apiService.uploadReportImage(
+        fileName: fileName,
+        fileBytes: bytes,
+      );
+
+      final report = await _apiService.createReport(
+        damageType: widget.draft.damageType,
+        severity: widget.draft.severity,
+        latitude: position.latitude,
+        longitude: position.longitude,
+        description: _descriptionController.text.trim().isEmpty
+            ? null
+            : _descriptionController.text.trim(),
+        imageUrl: imageUrl,
+      );
+
+      if (!mounted) return;
+      await Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SubmissionSuccessScreen(report: report),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit report: $e')),
+      );
+      setState(() {
+        _isSubmitting = false;
+      });
+    }
+  }
+
+  String _labelize(String value) {
+    return value
+        .split('_')
+        .map((part) => '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
+  }
+
+  @override
+  void dispose() {
+    _descriptionController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final draft = widget.draft;
+
     return Scaffold(
       backgroundColor: AppTheme.backgroundLight,
       body: SingleChildScrollView(
@@ -21,11 +147,22 @@ class ReviewSubmitScreen extends StatelessWidget {
                 children: [
                   const _SectionTitle(title: 'Damage'),
                   const SizedBox(height: 12),
-                  const _DamageImageCard(),
+                  _DamageImageCard(imagePath: draft.imagePath),
                   const SizedBox(height: 24),
-                  const _DetectionDetailsCard(),
+                  _DetectionDetailsCard(
+                    damageType: _labelize(draft.damageType),
+                    severity: _labelize(draft.severity),
+                  ),
                   const SizedBox(height: 24),
-                  const _LocationCard(),
+                  _LocationCard(
+                    isLoading: _isLoadingLocation,
+                    error: _locationError,
+                    latitude: _position?.latitude,
+                    longitude: _position?.longitude,
+                    onRetry: _loadLocation,
+                  ),
+                  const SizedBox(height: 24),
+                  _DescriptionCard(controller: _descriptionController),
                   const SizedBox(height: 24),
                   const _XpRewardCard(),
                   const SizedBox(height: 40),
@@ -35,7 +172,11 @@ class ReviewSubmitScreen extends StatelessWidget {
           ],
         ),
       ),
-      bottomNavigationBar: const _BottomSubmitSection(),
+      bottomNavigationBar: _BottomSubmitSection(
+        isSubmitting: _isSubmitting,
+        isLocationReady: _position != null,
+        onSubmit: _submitReport,
+      ),
     );
   }
 }
@@ -79,11 +220,7 @@ class _HeaderSection extends StatelessWidget {
                         color: Colors.white.withOpacity(0.2),
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(
-                        Icons.close,
-                        color: Colors.white,
-                        size: 20,
-                      ),
+                      child: const Icon(Icons.close, color: Colors.white, size: 20),
                     ),
                   ),
                 ),
@@ -98,7 +235,7 @@ class _HeaderSection extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  'Confirm your report details',
+                  'Upload the captured issue to StreetWatch',
                   style: GoogleFonts.outfit(
                     color: Colors.white.withOpacity(0.8),
                     fontSize: 16,
@@ -116,6 +253,7 @@ class _HeaderSection extends StatelessWidget {
 
 class _SectionTitle extends StatelessWidget {
   final String title;
+
   const _SectionTitle({required this.title});
 
   @override
@@ -132,16 +270,22 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _DamageImageCard extends StatelessWidget {
-  const _DamageImageCard();
+  final String imagePath;
+
+  const _DamageImageCard({required this.imagePath});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      height: 200,
+      height: 220,
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
+        image: DecorationImage(
+          image: FileImage(File(imagePath)),
+          fit: BoxFit.cover,
+        ),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.05),
@@ -150,23 +294,18 @@ class _DamageImageCard extends StatelessWidget {
           ),
         ],
       ),
-      child: Center(
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(
-            color: Colors.grey.withOpacity(0.1),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: const Icon(Icons.help_outline, color: AppTheme.primaryBlue),
-        ),
-      ),
     );
   }
 }
 
 class _DetectionDetailsCard extends StatelessWidget {
-  const _DetectionDetailsCard();
+  final String damageType;
+  final String severity;
+
+  const _DetectionDetailsCard({
+    required this.damageType,
+    required this.severity,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -195,37 +334,11 @@ class _DetectionDetailsCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 24),
-          const _DetailRow(label: 'Damage Type', value: 'Large Pothole'),
+          _DetailRow(label: 'Damage Type', value: damageType),
           const SizedBox(height: 16),
           const Divider(height: 1, color: Color(0xFFF1F5F9)),
           const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Severity Level',
-                style: TextStyle(color: Colors.grey, fontSize: 14),
-              ),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 6,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.riskHighLight,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  'High',
-                  style: GoogleFonts.outfit(
-                    color: AppTheme.riskHigh,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          _DetailRow(label: 'Severity Level', value: severity),
         ],
       ),
     );
@@ -258,12 +371,25 @@ class _DetailRow extends StatelessWidget {
 }
 
 class _LocationCard extends StatelessWidget {
-  const _LocationCard();
+  final bool isLoading;
+  final String? error;
+  final double? latitude;
+  final double? longitude;
+  final VoidCallback onRetry;
+
+  const _LocationCard({
+    required this.isLoading,
+    required this.error,
+    required this.latitude,
+    required this.longitude,
+    required this.onRetry,
+  });
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
+      padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(24),
@@ -278,74 +404,44 @@ class _LocationCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.only(left: 12, top: 12),
-            child: Text(
-              'Location',
-              style: GoogleFonts.outfit(
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF1A1A1A),
-              ),
+          Text(
+            'Location',
+            style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1A1A1A),
             ),
           ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
-            child: Container(
-              height: 120, // Reduced from 180
-              decoration: BoxDecoration(
-                gradient: const LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [Color(0xFF4A80F0), Color(0xFF2C5AC5)],
-                ),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Stack(
-                children: [
-                  Opacity(
-                    opacity: 0.15,
-                    child: GridView.builder(
-                      physics: const NeverScrollableScrollPhysics(),
-                      padding: EdgeInsets.zero,
-                      gridDelegate:
-                          const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 15,
-                          ),
-                      itemCount: 225,
-                      itemBuilder: (context, index) => Container(
-                        decoration: BoxDecoration(
-                          border: Border.all(color: Colors.white, width: 0.5),
-                        ),
-                      ),
-                    ),
-                  ),
-                  const Center(
-                    child: Icon(
-                      Icons.location_on,
-                      color: Colors.white,
-                      size: 48,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 12),
-          Padding(
-            padding: const EdgeInsets.only(left: 20, right: 20, bottom: 16),
-            child: Row(
+          const SizedBox(height: 16),
+          if (isLoading)
+            const Center(child: CircularProgressIndicator())
+          else if (error != null)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const Icon(
-                  Icons.location_on_outlined,
-                  color: AppTheme.primaryBlue,
-                  size: 20,
+                Text(
+                  error!,
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFEF4444),
+                    fontSize: 14,
+                  ),
                 ),
+                const SizedBox(height: 12),
+                OutlinedButton.icon(
+                  onPressed: onRetry,
+                  icon: const Icon(Icons.refresh),
+                  label: const Text('Retry location'),
+                ),
+              ],
+            )
+          else
+            Row(
+              children: [
+                const Icon(Icons.location_on_outlined, color: AppTheme.primaryBlue),
                 const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    '845 Market St, San Francisco, CA',
+                    '${latitude!.toStringAsFixed(5)}, ${longitude!.toStringAsFixed(5)}',
                     style: GoogleFonts.outfit(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -354,6 +450,52 @@ class _LocationCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DescriptionCard extends StatelessWidget {
+  final TextEditingController controller;
+
+  const _DescriptionCard({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 20,
+            offset: const Offset(0, 10),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Description',
+            style: GoogleFonts.outfit(
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+              color: const Color(0xFF1A1A1A),
+            ),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: controller,
+            maxLines: 4,
+            decoration: const InputDecoration(
+              hintText: 'Add any details about the issue',
+              border: OutlineInputBorder(),
             ),
           ),
         ],
@@ -400,7 +542,7 @@ class _XpRewardCard extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                '+150 XP',
+                '+25 XP',
                 style: GoogleFonts.outfit(
                   color: Colors.white,
                   fontSize: 32,
@@ -416,9 +558,7 @@ class _XpRewardCard extends StatelessWidget {
               color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
-            child: const Center(
-              child: Text('🎯', style: TextStyle(fontSize: 32)),
-            ),
+            child: const Center(child: Text('🎯', style: TextStyle(fontSize: 32))),
           ),
         ],
       ),
@@ -427,7 +567,15 @@ class _XpRewardCard extends StatelessWidget {
 }
 
 class _BottomSubmitSection extends StatelessWidget {
-  const _BottomSubmitSection();
+  final bool isSubmitting;
+  final bool isLocationReady;
+  final VoidCallback onSubmit;
+
+  const _BottomSubmitSection({
+    required this.isSubmitting,
+    required this.isLocationReady,
+    required this.onSubmit,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -439,14 +587,7 @@ class _BottomSubmitSection extends StatelessWidget {
       ),
       child: SafeArea(
         child: ElevatedButton(
-          onPressed: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => const SubmissionSuccessScreen(),
-              ),
-            );
-          },
+          onPressed: isSubmitting || !isLocationReady ? null : onSubmit,
           style: ElevatedButton.styleFrom(
             backgroundColor: AppTheme.primaryBlue,
             foregroundColor: Colors.white,
@@ -458,12 +599,24 @@ class _BottomSubmitSection extends StatelessWidget {
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.center,
-            children: const [
-              Icon(Icons.send_rounded, size: 20),
-              SizedBox(width: 12),
+            children: [
+              if (isSubmitting) ...[
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(width: 12),
+              ] else ...[
+                const Icon(Icons.send_rounded, size: 20),
+                const SizedBox(width: 12),
+              ],
               Text(
-                'Submit Report',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                isSubmitting ? 'Submitting...' : 'Submit Report',
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
@@ -476,14 +629,9 @@ class _BottomSubmitSection extends StatelessWidget {
 class _HeaderClipper extends CustomClipper<Path> {
   @override
   Path getClip(Size size) {
-    Path path = Path();
+    final path = Path();
     path.lineTo(0, size.height - 40);
-    path.quadraticBezierTo(
-      size.width / 2,
-      size.height,
-      size.width,
-      size.height - 40,
-    );
+    path.quadraticBezierTo(size.width / 2, size.height, size.width, size.height - 40);
     path.lineTo(size.width, 0);
     path.close();
     return path;

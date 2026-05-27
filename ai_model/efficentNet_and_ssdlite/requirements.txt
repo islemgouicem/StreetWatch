@@ -1,0 +1,19 @@
+# StreetWatch AI — Python dependencies
+# Training environment
+torch>=2.0.0
+torchvision>=0.15.0
+timm>=0.9.0
+
+# Data processing
+opencv-python>=4.8.0
+numpy>=1.24.0
+
+# Export pipeline
+onnx>=1.14.0
+onnxruntime>=1.16.0
+onnx-tf>=1.10.0
+tensorflow>=2.13.0      # for TFLite conversion
+
+# Utilities
+Pillow>=10.0.0
+tqdm>=4.65.0
