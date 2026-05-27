@@ -27,6 +27,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_anon_key: str = ""
     supabase_service_role_key: str = ""
+    auto_verify_new_reports: bool = False
+
 
     @property
     def cors_origins_list(self) -> list[str]:

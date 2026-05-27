@@ -63,11 +63,8 @@ async def list_badges() -> list[BadgeRead]:
     return [BadgeRead(**row) for row in rows]
 
 
-@router.get("/{badge_id}", response_model=BadgeRead)
-async def read_badge(badge_id: UUID) -> BadgeRead:
-    return BadgeRead(**_read_badge_row(badge_id))
-
-
+# NOTE: /me/awards and /users/{user_id} MUST be defined before /{badge_id}
+# so FastAPI does not try to parse the literal strings "me" or "users" as UUIDs.
 @router.get("/me/awards", response_model=list[UserBadgeDetailRead])
 async def read_my_badges(
     current_user: dict[str, Any] = Depends(get_current_user),
@@ -98,6 +95,11 @@ async def read_user_badges(user_id: UUID) -> list[UserBadgeDetailRead]:
         or []
     )
     return _build_user_badge_details(rows)
+
+
+@router.get("/{badge_id}", response_model=BadgeRead)
+async def read_badge(badge_id: UUID) -> BadgeRead:
+    return BadgeRead(**_read_badge_row(badge_id))
 
 
 @router.post("", response_model=BadgeRead, status_code=status.HTTP_201_CREATED)

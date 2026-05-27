@@ -3,7 +3,9 @@
 .dart_tool/
 .packages
 pubspec.lock
-
+ai_model/data/RDD_SPLIT
+mobile_app/assets/mock/rdd_test_images/
+ai_model/data/
 # Python
 __pycache__/
 *.pyc

@@ -128,7 +128,7 @@ class _CameraScreenState extends State<CameraScreen> {
       // Run Inference
       final recognitions = await _tfliteService.runInference(imageFile);
 
-      String detectedDamageType = 'no_damage';
+      String detectedDamageType = 'other';
       String detectedSeverity = 'low';
       double confidence = 0.0;
 

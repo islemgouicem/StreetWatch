@@ -29,7 +29,7 @@ class UserRead(UserBase):
     is_active: bool
     is_admin: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
     total_reports: int = 0
     verified_reports: int = 0
 

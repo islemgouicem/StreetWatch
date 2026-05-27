@@ -1,5 +1,5 @@
-@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
+
 
 :root {
   --bg: #eff4ff;
@@ -32,14 +32,29 @@
   box-sizing: border-box;
 }
 
-html,
-body,
-#root {
-  min-height: 100%;
+html {
+  height: 100%;
   margin: 0;
+  padding: 0;
 }
 
 body {
+  min-height: 100vh;
+  margin: 0;
+  padding: 0;
+  background:
+    radial-gradient(circle at top left, rgba(102, 135, 255, 0.24), transparent 24rem),
+    radial-gradient(circle at top right, rgba(255, 164, 79, 0.18), transparent 20rem),
+    linear-gradient(180deg, #eaf1ff 0%, #f7faff 38%, #f2f5fb 100%);
+  font-family: "Manrope", "Avenir Next", "Segoe UI", sans-serif;
+  color: #1d2740;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+#root {
   min-height: 100vh;
 }
 
@@ -457,9 +472,14 @@ img {
 
 .detail-panel {
   display: grid;
-  grid-template-columns: minmax(260px, 340px) 1fr;
+  grid-template-columns: minmax(260px, 320px) 1fr;
   gap: 20px;
-  align-items: stretch;
+  align-items: start;
+}
+
+/* When there's no image, collapse to single column */
+.detail-panel:not(:has(.detail-image-wrap)) {
+  grid-template-columns: 1fr;
 }
 
 .detail-image-wrap {
@@ -510,6 +530,12 @@ img {
   background: rgba(88, 120, 247, 0.12);
   color: #4563d9;
 }
+
+/* Per-status color overrides */
+.status-pending   { background: rgba(217, 119, 6, 0.12);  color: #b45309; }
+.status-verified  { background: rgba(37, 99, 235, 0.12);  color: #1d4ed8; }
+.status-resolved  { background: rgba(5, 150, 105, 0.12);  color: #047857; }
+.status-rejected  { background: rgba(220, 38, 38, 0.12);  color: #b91c1c; }
 
 .severity-pill {
   color: #ffffff;
@@ -662,3 +688,71 @@ img {
     height: 420px;
   }
 }
+
+/* Custom Simulation Form styling matching index.css design tokens */
+.sim-form-group {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.sim-input {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text);
+  font-size: 0.88rem;
+  box-sizing: border-box;
+}
+
+.sim-input:focus {
+  outline: none;
+  border-color: rgba(67, 103, 224, 0.4);
+  background: #ffffff;
+}
+
+.sim-textarea {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--text);
+  font-size: 0.88rem;
+  min-height: 60px;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.sim-textarea:focus {
+  outline: none;
+  border-color: rgba(67, 103, 224, 0.4);
+  background: #ffffff;
+}
+
+.sim-submit-btn {
+  width: 100%;
+  border: 0;
+  padding: 12px;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--blue-start), var(--blue-end));
+  color: #ffffff;
+  font-weight: 800;
+  font-size: 0.92rem;
+  box-shadow: 0 12px 22px rgba(71, 103, 226, 0.22);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+}
+
+.sim-submit-btn:hover {
+  transform: translateY(-1px);
+}
+
+.sim-submit-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+

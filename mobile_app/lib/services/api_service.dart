@@ -327,11 +327,11 @@ class ApiService {
   }) async {
     try {
       final body = jsonEncode({
-          if (username != null) 'username': username,
-          if (avatarUrl != null) 'avatar_url': avatarUrl,
-          if (fullName != null) 'full_name': fullName,
-          if (bio != null) 'bio': bio,
-        });
+        if (username != null) 'username': username,
+        if (avatarUrl != null) 'avatar_url': avatarUrl,
+        if (fullName != null) 'full_name': fullName,
+        if (bio != null) 'bio': bio,
+      });
       final response = await http.patch(
         Uri.parse('$baseUrl/users/me'),
         headers: await _getHeaders(),
@@ -546,7 +546,9 @@ class ApiService {
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
         return data
-            .map((json) => PointTransaction.fromJson(json as Map<String, dynamic>))
+            .map(
+              (json) => PointTransaction.fromJson(json as Map<String, dynamic>),
+            )
             .toList();
       } else {
         throw ApiException(
@@ -574,7 +576,7 @@ class ApiService {
       }
 
       // Storage path inside the bucket: {userId}/{fileName}
-      final storagePath = 'reports-images/$userId/$fileName';
+      final storagePath = '$userId/$fileName';
 
       await _supabase.storage
           .from('reports-images')
@@ -603,7 +605,7 @@ class ApiService {
       }
 
       // Storage path inside the bucket: {userId}/{fileName}
-      final storagePath = 'avatars/$userId/$fileName';
+      final storagePath = '$userId/$fileName';
 
       await _supabase.storage
           .from('avatars')
