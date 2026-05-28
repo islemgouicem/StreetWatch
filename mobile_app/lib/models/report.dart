@@ -1,18 +1,55 @@
 enum DamageType {
   pothole('pothole'),
-  crack('crack'),
-  flooding('flooding'),
-  debris('debris'),
+  longitudinalCrack('longitudinal_crack'),
+  transverseCrack('transverse_crack'),
+  alligatorCrack('alligator_crack'),
   other('other');
 
   final String value;
   const DamageType(this.value);
 
   factory DamageType.fromString(String value) {
+    final normalized = normalizeDamageTypeValue(value);
     return DamageType.values.firstWhere(
-      (e) => e.value == value,
+      (e) => e.value == normalized,
       orElse: () => DamageType.other,
     );
+  }
+}
+
+String normalizeDamageTypeValue(String value) {
+  final normalized = value
+      .trim()
+      .toLowerCase()
+      .replaceAll('-', '_')
+      .replaceAll(' ', '_');
+  switch (normalized) {
+    case 'crack':
+      return DamageType.longitudinalCrack.value;
+    case 'other':
+    case 'other_damage':
+    case 'other_damages':
+    case 'broken_sign':
+    case 'flooding':
+    case 'debris':
+      return DamageType.other.value;
+    default:
+      return normalized;
+  }
+}
+
+String damageTypeDisplayLabel(DamageType damageType) {
+  switch (damageType) {
+    case DamageType.pothole:
+      return 'Pothole';
+    case DamageType.longitudinalCrack:
+      return 'Longitudinal Crack';
+    case DamageType.transverseCrack:
+      return 'Transverse Crack';
+    case DamageType.alligatorCrack:
+      return 'Alligator Crack';
+    case DamageType.other:
+      return 'Other Damage';
   }
 }
 

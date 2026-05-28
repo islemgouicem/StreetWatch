@@ -2,7 +2,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import type { Report, Severity } from '../types';
-import { damageTypeLabel, severityLabel, statusLabel } from '../types';
+import { getDamageTypeLabel, severityLabel, statusLabel } from '../types';
 import { MapController } from './MapController';
 
 type MapViewProps = {
@@ -72,7 +72,7 @@ export function MapView({ reports, selectedReport, onSelectReport }: MapViewProp
                 {report.image_url && (
                   <img
                     src={report.image_url}
-                    alt={damageTypeLabel[report.damage_type]}
+                    alt={getDamageTypeLabel(report.damage_type)}
                     style={{
                       width: '100%',
                       height: '100px',
@@ -83,7 +83,7 @@ export function MapView({ reports, selectedReport, onSelectReport }: MapViewProp
                   />
                 )}
                 <h4 style={{ margin: '0 0 0.2rem', fontSize: '0.9rem', fontWeight: 700 }}>
-                  {damageTypeLabel[report.damage_type]}
+                  {getDamageTypeLabel(report.damage_type)}
                 </h4>
                 {report.description && (
                   <p style={{ margin: '0 0 0.4rem', fontSize: '0.75rem', color: '#4b5563' }}>

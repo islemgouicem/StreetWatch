@@ -1,11 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import { MapView } from '../components/MapView';
 import type { DamageType, Report, ReportStatus, Severity } from '../types';
-import { damageTypeLabel, severityLabel, statusLabel } from '../types';
+import { damageTypeLabel, getDamageTypeLabel, normalizeDamageType, severityLabel, statusLabel } from '../types';
 
 const BACKEND_URL = 'http://localhost:8000/api/v1';
 
-const allDamageTypes: DamageType[] = ['pothole', 'crack', 'flooding', 'debris', 'other'];
+const allDamageTypes: DamageType[] = ['pothole', 'longitudinal_crack', 'transverse_crack', 'alligator_crack', 'other'];
 const allSeverityLevels: Severity[] = ['low', 'medium', 'high'];
 const allStatuses: ReportStatus[] = ['pending', 'verified', 'rejected', 'resolved'];
 
@@ -57,7 +57,8 @@ export default function MapPage() {
   };
 
   const filteredReports = allReports.filter((r) => {
-    if (!selectedDamageTypes.includes(r.damage_type)) return false;
+    const damageType = normalizeDamageType(r.damage_type);
+    if (!selectedDamageTypes.includes(damageType)) return false;
     if (!selectedSeverity.includes(r.severity)) return false;
     if (!selectedStatuses.includes(r.status)) return false;
     if (searchQuery.trim()) {
@@ -65,7 +66,7 @@ export default function MapPage() {
       const matches =
         r.user_name.toLowerCase().includes(q) ||
         (r.description ?? '').toLowerCase().includes(q) ||
-        damageTypeLabel[r.damage_type].toLowerCase().includes(q);
+        getDamageTypeLabel(r.damage_type).toLowerCase().includes(q);
       if (!matches) return false;
     }
     if (dateRange !== 'all') {
@@ -329,7 +330,7 @@ export default function MapPage() {
                   onClick={() => setSelectedReportId(report.id)}
                 >
                   <div className="report-row-head">
-                    <strong>{damageTypeLabel[report.damage_type]}</strong>
+                    <strong>{getDamageTypeLabel(report.damage_type)}</strong>
                     <span className={`severity-pill severity-${report.severity}`}>
                       {severityLabel[report.severity]}
                     </span>
@@ -378,7 +379,7 @@ export default function MapPage() {
                   <div className="detail-image-wrap">
                     <img
                       src={selectedReport.image_url}
-                      alt={damageTypeLabel[selectedReport.damage_type]}
+                      alt={getDamageTypeLabel(selectedReport.damage_type)}
                       className="detail-image"
                     />
                     <span className={`severity-pill floating severity-${selectedReport.severity}`}>
@@ -391,7 +392,7 @@ export default function MapPage() {
                   <div className="detail-head">
                     <div>
                       <p className="section-label">Selected report</p>
-                      <h3>{damageTypeLabel[selectedReport.damage_type]}</h3>
+                      <h3>{getDamageTypeLabel(selectedReport.damage_type)}</h3>
                     </div>
                     <span className={`status-badge status-${selectedReport.status}`}>
                       {statusLabel[selectedReport.status]}

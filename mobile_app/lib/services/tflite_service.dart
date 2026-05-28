@@ -21,8 +21,7 @@ class Recognition {
 class TfliteService {
   Interpreter? _interpreter;
 
-  static const String modelPath =
-      'assets/models/road_damage_mobile.tflite';
+  static const String modelPath = 'assets/models/road_damage_mobile.tflite';
 
   static const double confidenceThreshold = 0.45;
   static const double nmsThreshold = 0.40;
@@ -41,7 +40,7 @@ class TfliteService {
     'transverse_crack',
     'alligator_crack',
     'pothole',
-    'other_damage',
+    'other',
   ];
 
   Future<void> loadModel() async {
@@ -89,18 +88,11 @@ class TfliteService {
       1,
       (_) => List.generate(
         inputSize,
-        (y) => List.generate(
-          inputSize,
-          (x) {
-            final pixel = processedImage.getPixel(x, y);
+        (y) => List.generate(inputSize, (x) {
+          final pixel = processedImage.getPixel(x, y);
 
-            return [
-              pixel.r / 255.0,
-              pixel.g / 255.0,
-              pixel.b / 255.0,
-            ];
-          },
-        ),
+          return [pixel.r / 255.0, pixel.g / 255.0, pixel.b / 255.0];
+        }),
       ),
     );
 
@@ -108,7 +100,8 @@ class TfliteService {
     var output = List.generate(
       1,
       (i) => List.generate(9, (j) => List.filled(numPredictions, 0.0)),
-    );;
+    );
+    ;
 
     // Run inference
     _interpreter!.run(input, output);
@@ -129,47 +122,24 @@ class TfliteService {
   // =========================================================
 
   _LetterboxResult _letterbox(img.Image image) {
-    final double scale = min(
-      inputSize / image.width,
-      inputSize / image.height,
-    );
+    final double scale = min(inputSize / image.width, inputSize / image.height);
 
     final int newWidth = (image.width * scale).round();
     final int newHeight = (image.height * scale).round();
 
-    final resized = img.copyResize(
-      image,
-      width: newWidth,
-      height: newHeight,
-    );
+    final resized = img.copyResize(image, width: newWidth, height: newHeight);
 
-    final canvas = img.Image(
-      width: inputSize,
-      height: inputSize,
-    );
+    final canvas = img.Image(width: inputSize, height: inputSize);
 
     // Fill gray 114
-    img.fill(
-      canvas,
-      color: img.ColorRgb8(114, 114, 114),
-    );
+    img.fill(canvas, color: img.ColorRgb8(114, 114, 114));
 
     final int padX = ((inputSize - newWidth) / 2).round();
     final int padY = ((inputSize - newHeight) / 2).round();
 
-    img.compositeImage(
-      canvas,
-      resized,
-      dstX: padX,
-      dstY: padY,
-    );
+    img.compositeImage(canvas, resized, dstX: padX, dstY: padY);
 
-    return _LetterboxResult(
-      canvas,
-      scale,
-      padX,
-      padY,
-    );
+    return _LetterboxResult(canvas, scale, padX, padY);
   }
 
   // =========================================================
@@ -230,14 +200,7 @@ class TfliteService {
 
       final rect = Rect.fromLTRB(x1, y1, x2, y2);
 
-      recognitions.add(
-        Recognition(
-          classId,
-          labels[classId],
-          maxScore,
-          rect,
-        ),
-      );
+      recognitions.add(Recognition(classId, labels[classId], maxScore, rect));
     }
 
     // Apply NMS
@@ -271,8 +234,10 @@ class TfliteService {
           return false;
         }
 
-        final intersection =
-            _calculateIntersection(first.location, next.location);
+        final intersection = _calculateIntersection(
+          first.location,
+          next.location,
+        );
 
         final union =
             first.location.width * first.location.height +
@@ -316,10 +281,5 @@ class _LetterboxResult {
   final int padX;
   final int padY;
 
-  _LetterboxResult(
-    this.image,
-    this.scale,
-    this.padX,
-    this.padY,
-  );
+  _LetterboxResult(this.image, this.scale, this.padX, this.padY);
 }

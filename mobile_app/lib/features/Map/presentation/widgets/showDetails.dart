@@ -1,13 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_app/models/index.dart';
 
-Widget showDetails(
-  BuildContext context, {
-  required Report report,
-}) {
+Widget showDetails(BuildContext context, {required Report report}) {
   final description = report.description?.trim().isNotEmpty == true
       ? report.description!.trim()
-      : report.damageType.value;
+      : damageTypeDisplayLabel(report.damageType);
   final location =
       '${report.latitude.toStringAsFixed(5)}, ${report.longitude.toStringAsFixed(5)}';
 
@@ -33,12 +30,21 @@ Widget showDetails(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    description,
+                    damageTypeDisplayLabel(report.damageType),
                     style: const TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
                     ),
                   ),
+                  if (description !=
+                      damageTypeDisplayLabel(report.damageType)) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     children: [

@@ -1,5 +1,4 @@
-// Matches the Python backend + Flutter model schema exactly
-export type DamageType = 'pothole' | 'crack' | 'flooding' | 'debris' | 'other'
+export type DamageType = 'pothole' | 'longitudinal_crack' | 'transverse_crack' | 'alligator_crack' | 'other'
 
 export type Severity = 'low' | 'medium' | 'high'
 
@@ -24,13 +23,33 @@ export type Report = {
   distance_meters: number | null
 }
 
-// Convenience display labels
 export const damageTypeLabel: Record<DamageType, string> = {
   pothole: 'Pothole',
-  crack: 'Crack',
-  flooding: 'Flooding',
-  debris: 'Debris',
-  other: 'Other',
+  longitudinal_crack: 'Longitudinal Crack',
+  transverse_crack: 'Transverse Crack',
+  alligator_crack: 'Alligator Crack',
+  other: 'Other Damage',
+}
+
+export function normalizeDamageType(value: string | null | undefined): DamageType {
+  const normalized = (value ?? '').trim().toLowerCase().replace(/[-\s]+/g, '_')
+
+  switch (normalized) {
+    case 'pothole':
+    case 'longitudinal_crack':
+    case 'transverse_crack':
+    case 'alligator_crack':
+      return normalized
+    case 'other':
+    case 'other_damage':
+    case 'other_damages':
+    default:
+      return 'other'
+  }
+}
+
+export function getDamageTypeLabel(value: string | null | undefined): string {
+  return damageTypeLabel[normalizeDamageType(value)]
 }
 
 export const severityLabel: Record<Severity, string> = {

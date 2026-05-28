@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../context/AuthContext';
 import type { Report, ReportStatus } from '../types';
-import { damageTypeLabel, severityLabel, statusLabel } from '../types';
+import { getDamageTypeLabel, severityLabel, statusLabel } from '../types';
 
 const BACKEND_URL = 'http://localhost:8000/api/v1';
 
@@ -177,7 +177,7 @@ export default function ReportsPage() {
                     <span className={`severity-pill severity-${report.severity}`}>
                       {severityLabel[report.severity]}
                     </span>
-                    <strong>{damageTypeLabel[report.damage_type]}</strong>
+                    <strong>{getDamageTypeLabel(report.damage_type)}</strong>
                   </div>
                   <span className={`status-badge status-${report.status}`}>
                     {statusLabel[report.status]}
@@ -206,7 +206,7 @@ export default function ReportsPage() {
           {selectedReport ? (
             <div className="panel" style={{ position: 'sticky', top: '80px' }}>
               <p className="section-label">Report Detail</p>
-              <h3 style={{ marginBottom: 16 }}>{damageTypeLabel[selectedReport.damage_type]}</h3>
+              <h3 style={{ marginBottom: 16 }}>{getDamageTypeLabel(selectedReport.damage_type)}</h3>
 
               {selectedReport.image_url && (
                 <img

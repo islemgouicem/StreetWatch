@@ -87,6 +87,26 @@ def _to_report_read(
     votes_map = votes_map or {}
     user = users_map.get(str(row["user_id"]), {})
     vote_summary = votes_map.get(str(row["id"]), {})
+    
+    damage_type = row["damage_type"]
+    description = row.get("description") or ""
+    
+    # Parse AI type out of description
+    if description.startswith("[ai_type:"):
+        end_idx = description.find("]")
+        if end_idx != -1:
+            damage_type = description[9:end_idx]
+            description = description[end_idx+1:].strip()
+            if not description:
+                description = None
+
+    # Fallback mapper
+    if damage_type not in [e.value for e in DamageType]:
+        if damage_type == "crack":
+            damage_type = "other"
+        else:
+            damage_type = "other"
+
     return ReportRead(
         id=row["id"],
         user_id=row["user_id"],
@@ -95,10 +115,10 @@ def _to_report_read(
         user_avatar_url=user.get("avatar_url"),
         user_points=int(user.get("points") or 0),
         image_url=row["image_url"],
-        damage_type=row["damage_type"],
+        damage_type=damage_type,
         severity=row["severity"],
         severity_confidence=row.get("severity_confidence"),
-        description=row.get("description"),
+        description=description,
         latitude=float(row["latitude"]),
         longitude=float(row["longitude"]),
         status=row["status"],
@@ -147,13 +167,25 @@ def _insert_report_for_user(
                 detail="Potential duplicate report detected nearby",
             )
 
+    db_damage_type = payload.damage_type.value
+    actual_damage_type = payload.damage_type.value
+    
+    if db_damage_type in ("longitudinal_crack", "transverse_crack", "alligator_crack"):
+        db_damage_type = "crack"
+    
+    desc = payload.description or ""
+    if actual_damage_type in ("longitudinal_crack", "transverse_crack", "alligator_crack"):
+        desc = f"[ai_type:{actual_damage_type}] {desc}".strip()
+        if not desc:
+            desc = None
+            
     insert_payload: dict[str, Any] = {
         "user_id": current_user["id"],
         "client_report_id": payload.client_report_id,
         "image_url": payload.image_url,
-        "damage_type": payload.damage_type.value,
+        "damage_type": db_damage_type,
         "severity": payload.severity.value,
-        "description": payload.description,
+        "description": desc,
         "latitude": payload.latitude,
         "longitude": payload.longitude,
     }
@@ -225,7 +257,12 @@ def _apply_report_filters(
         query = query.eq("status", status_value.value)
 
     if damage_type is not None:
-        query = query.eq("damage_type", damage_type.value)
+        if damage_type.value in ("longitudinal_crack", "transverse_crack", "alligator_crack"):
+            query = query.eq("damage_type", "crack")
+            query = query.like("description", f"%[ai_type:{damage_type.value}]%")
+        else:
+            query = query.eq("damage_type", damage_type.value)
+            
     if severity is not None:
         query = query.eq("severity", severity.value)
     if user_id is not None:
@@ -455,8 +492,20 @@ async def get_report_stats(
     severity_counts = {report_severity.value: 0 for report_severity in Severity}
 
     for row in rows:
+        d_type = str(row["damage_type"])
+        desc = row.get("description") or ""
+        if desc.startswith("[ai_type:"):
+            end = desc.find("]")
+            if end != -1:
+                d_type = desc[9:end]
+        if d_type not in [e.value for e in DamageType]:
+            if d_type == "crack":
+                d_type = "other"
+            else:
+                d_type = "other"
+
         status_counts[str(row["status"])] = status_counts.get(str(row["status"]), 0) + 1
-        damage_counts[str(row["damage_type"])] = damage_counts.get(str(row["damage_type"]), 0) + 1
+        damage_counts[d_type] = damage_counts.get(d_type, 0) + 1
         severity_counts[str(row["severity"])] = severity_counts.get(str(row["severity"]), 0) + 1
 
     return ReportStatsRead(

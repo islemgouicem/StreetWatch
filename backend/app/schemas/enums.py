@@ -3,11 +3,23 @@ from enum import Enum
 
 class DamageType(str, Enum):
     pothole = "pothole"
-    crack = "crack"
-    broken_sign = "broken_sign"
-    flooding = "flooding"
-    debris = "debris"
+    longitudinal_crack = "longitudinal_crack"
+    transverse_crack = "transverse_crack"
+    alligator_crack = "alligator_crack"
     other = "other"
+
+    @classmethod
+    def _missing_(cls, value: object):
+        if not isinstance(value, str):
+            return None
+
+        normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+        aliases = {
+            "other": cls.other,
+            "other_damage": cls.other,
+            "other_damages": cls.other,
+        }
+        return aliases.get(normalized)
 
 
 class Severity(str, Enum):

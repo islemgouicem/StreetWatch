@@ -113,14 +113,14 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     switch (damageType) {
       case DamageType.pothole:
         return 'Pothole';
-      case DamageType.crack:
-        return 'Cracked Pavement';
-      case DamageType.flooding:
-        return 'Flooding';
-      case DamageType.debris:
-        return 'Road Debris';
+      case DamageType.longitudinalCrack:
+        return 'Longitudinal Crack';
+      case DamageType.transverseCrack:
+        return 'Transverse Crack';
+      case DamageType.alligatorCrack:
+        return 'Alligator Crack';
       case DamageType.other:
-        return 'Infrastructure Issue';
+        return 'Other Damage';
     }
   }
 

@@ -221,7 +221,7 @@ class ApiService {
   }) async {
     try {
       final body = jsonEncode({
-        'damage_type': damageType,
+        'damage_type': normalizeDamageTypeValue(damageType),
         'severity': severity,
         'latitude': latitude,
         'longitude': longitude,

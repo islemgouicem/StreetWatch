@@ -23,10 +23,9 @@ class _DetectionResultScreenState extends State<DetectionResultScreen> {
 
   static const List<String> _damageTypes = [
     'pothole',
-    'crack',
-    'broken_sign',
-    'flooding',
-    'debris',
+    'longitudinal_crack',
+    'transverse_crack',
+    'alligator_crack',
     'other',
   ];
 
