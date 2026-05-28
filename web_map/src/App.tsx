@@ -6,6 +6,7 @@ import LoginPage from './pages/LoginPage';
 import MapPage from './pages/MapPage';
 import ReportsPage from './pages/ReportsPage';
 import LeaderboardPage from './pages/LeaderboardPage';
+import UsersPage from './pages/UsersPage';
 
 function AppShell() {
   const { session, isLoading } = useAuth();
@@ -31,6 +32,7 @@ function AppShell() {
           <Route path="/" element={<MapPage />} />
           <Route path="/reports" element={<ReportsPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
+          <Route path="/users" element={<UsersPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

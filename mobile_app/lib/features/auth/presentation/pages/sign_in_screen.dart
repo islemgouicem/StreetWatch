@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/features/auth/presentation/pages/blocked_account_screen.dart';
 import 'package:mobile_app/features/auth/presentation/pages/sign_up_screen.dart';
 import 'package:mobile_app/navigation/navigation_wrapper.dart';
 import 'package:mobile_app/services/api_service.dart';
@@ -32,26 +33,6 @@ class _SignInScreenState extends State<SignInScreen> {
     );
   }
 
-  Future<void> _provisionBackendUserInBackground() async {
-    final apiService = ApiService(Supabase.instance.client);
-
-    for (var attempt = 0; attempt < 6; attempt++) {
-      final hasSession =
-          Supabase.instance.client.auth.currentSession?.accessToken != null;
-      if (!hasSession) {
-        await Future.delayed(const Duration(milliseconds: 300));
-        continue;
-      }
-
-      try {
-        await apiService.getCurrentUser().timeout(const Duration(seconds: 2));
-        return;
-      } catch (_) {
-        await Future.delayed(const Duration(milliseconds: 400));
-      }
-    }
-  }
-
   Future<void> _signIn() async {
     if (_isLoading) return;
 
@@ -67,13 +48,25 @@ class _SignInScreenState extends State<SignInScreen> {
           .signInWithPassword(email: email, password: password)
           .timeout(const Duration(seconds: 8));
 
+      final apiService = ApiService(Supabase.instance.client);
+      await apiService.getCurrentUser().timeout(const Duration(seconds: 5));
+
       if (!mounted) return;
       _goToApp();
-
-      // Run provisioning in background so login UX is never blocked.
-      _provisionBackendUserInBackground();
     } on AuthException catch (error) {
       if (!mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on ApiException catch (error) {
+      if (!mounted) return;
+      if (error.statusCode == 401 &&
+          error.message.toLowerCase().contains('inactive')) {
+        Navigator.of(context).pushReplacement(
+          MaterialPageRoute(builder: (_) => const BlockedAccountScreen()),
+        );
+        return;
+      }
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));

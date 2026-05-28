@@ -35,6 +35,20 @@ DEFAULT_WEBMAP_STATUSES = [
 ]
 
 
+def _normalize_damage_type(value: Any) -> str:
+    normalized = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "other": "other",
+        "otherdamage": "other",
+        "other_damage": "other",
+        "other_damages": "other",
+        "broken_sign": "other",
+        "flooding": "other",
+        "debris": "other",
+    }
+    return aliases.get(normalized, normalized)
+
+
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     earth_radius_km = 6371.0
     d_lat = radians(lat2 - lat1)
@@ -88,24 +102,21 @@ def _to_report_read(
     user = users_map.get(str(row["user_id"]), {})
     vote_summary = votes_map.get(str(row["id"]), {})
     
-    damage_type = row["damage_type"]
+    damage_type = _normalize_damage_type(row["damage_type"])
     description = row.get("description") or ""
     
     # Parse AI type out of description
     if description.startswith("[ai_type:"):
         end_idx = description.find("]")
         if end_idx != -1:
-            damage_type = description[9:end_idx]
+            damage_type = _normalize_damage_type(description[9:end_idx])
             description = description[end_idx+1:].strip()
             if not description:
                 description = None
 
     # Fallback mapper
     if damage_type not in [e.value for e in DamageType]:
-        if damage_type == "crack":
-            damage_type = "other"
-        else:
-            damage_type = "other"
+        damage_type = "other"
 
     return ReportRead(
         id=row["id"],
@@ -167,8 +178,8 @@ def _insert_report_for_user(
                 detail="Potential duplicate report detected nearby",
             )
 
-    db_damage_type = payload.damage_type.value
-    actual_damage_type = payload.damage_type.value
+    db_damage_type = _normalize_damage_type(payload.damage_type.value)
+    actual_damage_type = db_damage_type
     
     if db_damage_type in ("longitudinal_crack", "transverse_crack", "alligator_crack"):
         db_damage_type = "crack"

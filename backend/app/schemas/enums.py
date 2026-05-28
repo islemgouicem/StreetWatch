@@ -16,6 +16,7 @@ class DamageType(str, Enum):
         normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
         aliases = {
             "other": cls.other,
+            "otherdamage": cls.other,
             "other_damage": cls.other,
             "other_damages": cls.other,
         }

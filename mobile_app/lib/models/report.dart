@@ -27,6 +27,7 @@ String normalizeDamageTypeValue(String value) {
     case 'crack':
       return DamageType.longitudinalCrack.value;
     case 'other':
+    case 'otherdamage':
     case 'other_damage':
     case 'other_damages':
     case 'broken_sign':
@@ -129,7 +130,7 @@ class Report {
       userId: json['user_id'] as String,
       imageUrl: json['image_url'] as String?,
       damageType: DamageType.fromString(
-        json['damage_type'] as String? ?? 'other',
+        json['damage_type']?.toString() ?? 'other',
       ),
       severity: Severity.fromString(json['severity'] as String? ?? 'medium'),
       description: json['description'] as String?,

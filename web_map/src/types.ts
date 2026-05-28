@@ -1,4 +1,10 @@
-export type DamageType = 'pothole' | 'longitudinal_crack' | 'transverse_crack' | 'alligator_crack' | 'other'
+export type DamageType =
+  | 'pothole'
+  | 'longitudinal_crack'
+  | 'transverse_crack'
+  | 'alligator_crack'
+  | 'other'
+  | 'Other'
 
 export type Severity = 'low' | 'medium' | 'high'
 
@@ -29,9 +35,10 @@ export const damageTypeLabel: Record<DamageType, string> = {
   transverse_crack: 'Transverse Crack',
   alligator_crack: 'Alligator Crack',
   other: 'Other Damage',
+  Other: 'Other Damage',
 }
 
-export function normalizeDamageType(value: string | null | undefined): DamageType {
+export function normalizeDamageType(value: string | null | undefined): Exclude<DamageType, 'Other'> {
   const normalized = (value ?? '').trim().toLowerCase().replace(/[-\s]+/g, '_')
 
   switch (normalized) {
@@ -41,6 +48,7 @@ export function normalizeDamageType(value: string | null | undefined): DamageTyp
     case 'alligator_crack':
       return normalized
     case 'other':
+    case 'otherdamage':
     case 'other_damage':
     case 'other_damages':
     default:

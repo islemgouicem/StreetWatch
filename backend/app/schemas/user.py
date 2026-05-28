@@ -23,6 +23,10 @@ class UserUpdate(BaseModel):
     image_profile: str | None = None
 
 
+class AdminUserStatusUpdate(BaseModel):
+    is_active: bool
+
+
 class UserRead(UserBase):
     id: UUID
     points: int

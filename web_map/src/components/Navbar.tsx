@@ -35,6 +35,14 @@ export default function Navbar() {
           >
             🏆 Leaderboard
           </NavLink>
+          {isAdmin && (
+            <NavLink
+              to="/users"
+              className={({ isActive }) => `nav-link${isActive ? ' active' : ''}`}
+            >
+              👥 Users
+            </NavLink>
+          )}
         </div>
 
         {/* User */}

@@ -1,9 +1,23 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.enums import DamageType, ReportStatus, Severity
+
+
+def normalize_damage_type(value: object) -> object:
+    if not isinstance(value, str):
+        return value
+
+    normalized = value.strip().lower().replace("-", "_").replace(" ", "_")
+    aliases = {
+        "other": DamageType.other.value,
+        "otherdamage": DamageType.other.value,
+        "other_damage": DamageType.other.value,
+        "other_damages": DamageType.other.value,
+    }
+    return aliases.get(normalized, normalized)
 
 
 class ReportCreate(BaseModel):
@@ -15,6 +29,11 @@ class ReportCreate(BaseModel):
     longitude: float
     client_report_id: str | None = Field(default=None, min_length=1, max_length=255)
 
+    @field_validator("damage_type", mode="before")
+    @classmethod
+    def normalize_damage_type_value(cls, value: object) -> object:
+        return normalize_damage_type(value)
+
 
 class ReportUpdate(BaseModel):
     damage_type: DamageType | None = None
@@ -24,6 +43,11 @@ class ReportUpdate(BaseModel):
     latitude: float | None = None
     longitude: float | None = None
     status: ReportStatus | None = None
+
+    @field_validator("damage_type", mode="before")
+    @classmethod
+    def normalize_damage_type_value(cls, value: object) -> object:
+        return normalize_damage_type(value)
 
 
 class ReportRead(BaseModel):

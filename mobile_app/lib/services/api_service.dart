@@ -71,13 +71,15 @@ class ApiService {
       if (response.statusCode == 200) {
         return User.fromJson(jsonDecode(response.body));
       } else if (response.statusCode == 401) {
-        throw ApiException('Unauthorized', statusCode: 401);
+        throw ApiException(_extractErrorDetail(response.body), statusCode: 401);
       } else {
         throw ApiException(
-          'Failed to fetch user profile',
+          'Failed to fetch user profile: ${_extractErrorDetail(response.body)}',
           statusCode: response.statusCode,
         );
       }
+    } on ApiException {
+      rethrow;
     } catch (e) {
       throw ApiException('Failed to get current user: $e');
     }
@@ -238,13 +240,29 @@ class ApiService {
       if (response.statusCode == 201 || response.statusCode == 200) {
         return Report.fromJson(jsonDecode(response.body));
       } else {
+        final errorDetail = _extractErrorDetail(response.body);
         throw ApiException(
-          'Failed to create report',
+          'Failed to create report: $errorDetail',
           statusCode: response.statusCode,
         );
       }
     } catch (e) {
       throw ApiException('Failed to create report: $e');
+    }
+  }
+
+  String _extractErrorDetail(String responseBody) {
+    if (responseBody.isEmpty) return 'Empty server response';
+
+    try {
+      final decoded = jsonDecode(responseBody);
+      if (decoded is Map<String, dynamic>) {
+        final detail = decoded['detail'];
+        if (detail != null) return detail.toString();
+      }
+      return decoded.toString();
+    } catch (_) {
+      return responseBody;
     }
   }
 
