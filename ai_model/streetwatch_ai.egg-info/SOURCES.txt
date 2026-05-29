@@ -1,0 +1,6 @@
+pyproject.toml
+streetwatch_ai.egg-info/PKG-INFO
+streetwatch_ai.egg-info/SOURCES.txt
+streetwatch_ai.egg-info/dependency_links.txt
+streetwatch_ai.egg-info/requires.txt
+streetwatch_ai.egg-info/top_level.txt

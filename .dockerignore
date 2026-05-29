@@ -1,0 +1,36 @@
+.git
+.gitignore
+.DS_Store
+
+# Secrets
+.env
+.env.*
+!.env.example
+
+# Node/Vite
+**/node_modules
+**/dist
+**/coverage
+
+# Python
+**/__pycache__
+**/*.pyc
+**/.venv
+**/venv
+
+# Flutter/Dart
+mobile_app/.dart_tool
+mobile_app/build
+mobile_app/.pub-cache
+mobile_app/.flutter-plugins-dependencies
+
+# AI data and training artifacts
+ai_model/.venv
+ai_model/data
+ai_model/**/dataset
+ai_model/**/runs
+ai_model/**/checkpoints
+ai_model/**/*.pt
+ai_model/**/*.pth
+ai_model/**/*.onnx
+ai_model/**/*.tflite

@@ -1,26 +1,23 @@
-version: '3.9'
-
 services:
   backend:
     build:
       context: ./backend
+    env_file:
+      - ./backend/.env
     ports:
       - "8000:8000"
-    environment:
-      - DATABASE_URL=postgresql://postgres:postgres@db:5432/streetwatch
-    depends_on:
-      - db
+    restart: unless-stopped
 
-  db:
-    image: postgis/postgis:16-3.4
-    environment:
-      POSTGRES_DB: streetwatch
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+  web_map:
+    build:
+      context: ./web_map
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000/api/v1}
+        VITE_SUPABASE_URL: ${VITE_SUPABASE_URL:-}
+        VITE_SUPABASE_ANON_KEY: ${VITE_SUPABASE_ANON_KEY:-}
     ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - "3000:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
 
-volumes:
-  postgres_data:

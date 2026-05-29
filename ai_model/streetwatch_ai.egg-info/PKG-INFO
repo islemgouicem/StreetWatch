@@ -1,0 +1,12 @@
+Metadata-Version: 2.4
+Name: streetwatch-ai
+Version: 0.1.0
+Summary: StreetWatch AI model for road damage detection
+Requires-Python: <3.13,>=3.10
+Requires-Dist: ultralytics>=8.0.0
+Requires-Dist: opencv-python==4.8.0.74
+Requires-Dist: wandb>=0.15.0
+Requires-Dist: torch>=2.0.0
+Requires-Dist: torchvision>=0.15.0
+Requires-Dist: numpy<2.0.0,>=1.22.0
+Requires-Dist: pyyaml>=6.0

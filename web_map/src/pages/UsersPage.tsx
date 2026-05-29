@@ -1,7 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
-
-const BACKEND_URL = 'http://localhost:8000/api/v1';
 
 type AdminUser = {
   id: string;
@@ -43,7 +42,7 @@ export default function UsersPage() {
     setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`${BACKEND_URL}/users/admin?limit=200`, {
+      const res = await fetch(`${API_BASE_URL}/users/admin?limit=200`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) {
@@ -84,7 +83,7 @@ export default function UsersPage() {
 
     setActionLoading(account.id);
     try {
-      const res = await fetch(`${BACKEND_URL}/users/admin/${account.id}/status`, {
+      const res = await fetch(`${API_BASE_URL}/users/admin/${account.id}/status`, {
         method: 'PATCH',
         headers: {
           Authorization: `Bearer ${session.access_token}`,

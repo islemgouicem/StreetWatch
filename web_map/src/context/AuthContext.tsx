@@ -6,9 +6,8 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { supabase } from '../supabaseClient';
-
-const BACKEND_URL = 'http://localhost:8000/api/v1';
+import { API_BASE_URL } from '../config';
+import { isSupabaseConfigured, supabase } from '../supabaseClient';
 
 type AuthUser = User & { is_admin?: boolean };
 
@@ -31,7 +30,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const loadAdminFlag = async (token: string) => {
     try {
-      const res = await fetch(`${BACKEND_URL}/auth/me`, {
+      const res = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
@@ -44,6 +43,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    if (!supabase) {
+      setIsLoading(false);
+      return;
+    }
+
     supabase.auth.getSession().then(({ data: { session: s } }) => {
       setSession(s);
       setUser((s?.user as AuthUser) ?? null);
@@ -68,13 +72,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const signIn = async (email: string, password: string): Promise<string | null> => {
+    if (!supabase) {
+      return 'Missing Supabase frontend configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then rebuild the web image.';
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     return error ? error.message : null;
   };
 
   const signOut = async () => {
-    await supabase.auth.signOut();
+    await supabase?.auth.signOut();
   };
+
+  if (!isSupabaseConfigured) {
+    return (
+      <div className="splash-loader">
+        <div style={{ maxWidth: 620, padding: '2rem', textAlign: 'left' }}>
+          <p className="section-label">Configuration Required</p>
+          <h2>Missing Supabase frontend env vars</h2>
+          <p>
+            Set <code>VITE_SUPABASE_URL</code> and <code>VITE_SUPABASE_ANON_KEY</code> in the
+            root <code>.env</code> file, then rebuild with <code>docker compose up -d --build</code>.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AuthContext.Provider value={{ session, user, isAdmin, isLoading, signIn, signOut }}>
