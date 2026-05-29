@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/models/index.dart';
 import 'package:mobile_app/services/api_service.dart';
+import 'package:mobile_app/services/offline_sync_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'submission_success_screen.dart';
@@ -77,6 +78,12 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
     });
 
     try {
+      // 1. Check internet availability first
+      final hasInternet = await OfflineSyncService().hasInternet();
+      if (!hasInternet) {
+        throw const SocketException('No internet connection. Saved to offline queue.');
+      }
+
       final imageFile = File(widget.draft.imagePath);
       final bytes = await imageFile.readAsBytes();
       final imageName = widget.draft.imagePath.split(Platform.pathSeparator).last;
@@ -108,9 +115,65 @@ class _ReviewSubmitScreenState extends State<ReviewSubmitScreen> {
       );
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to submit report: $e')),
-      );
+
+      // 2. Fallback: Save to Hive local box!
+      try {
+        final draftToSave = widget.draft.copyWith(
+          description: _descriptionController.text.trim().isEmpty
+              ? null
+              : _descriptionController.text.trim(),
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+
+        await OfflineSyncService().saveDraft(draftToSave);
+
+        if (!mounted) return;
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+            title: Row(
+              children: [
+                const Icon(Icons.cloud_off_rounded, color: Color(0xFFF59E0B), size: 28),
+                const SizedBox(width: 12),
+                Text(
+                  'Saved Offline',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 20,
+                  ),
+                ),
+              ],
+            ),
+            content: Text(
+              'No connection or upload failed. Your report has been saved locally to your offline queue.\n\nYou can upload it once your connection is back from the "My Reports" screen.',
+              style: GoogleFonts.outfit(fontSize: 14),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // Pop dialog
+                  Navigator.pop(context); // Pop camera/submission flow back to dashboard
+                },
+                child: Text(
+                  'OK',
+                  style: GoogleFonts.outfit(
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.primaryBlue,
+                  ),
+                ),
+              )
+            ],
+          ),
+        );
+      } catch (saveError) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to submit and could not save offline: $saveError')),
+        );
+      }
+
       setState(() {
         _isSubmitting = false;
       });
