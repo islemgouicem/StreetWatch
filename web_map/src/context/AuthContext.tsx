@@ -22,6 +22,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const sanitizeHeaderValue = (value: string) => value.trim().replace(/[^\x20-\x7E]+/g, '');
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -31,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadAdminFlag = async (token: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${sanitizeHeaderValue(token)}` },
       });
       if (res.ok) {
         const data = await res.json();
