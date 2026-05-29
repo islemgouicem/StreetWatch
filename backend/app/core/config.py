@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
     environment: str = "development"
     debug: bool = False
-    cors_origins: str = "http://localhost:3000,http://localhost:8000"
+    cors_origins: str = "http://localhost:3000,http://localhost:8000,https://streetwatch.onrender.com"
     secret_key: str = "change-this-in-production"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 24
