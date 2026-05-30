@@ -2,7 +2,11 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:mobile_app/features/auth/presentation/pages/blocked_account_screen.dart';
 import 'package:mobile_app/features/auth/presentation/pages/onboarding_screen.dart';
+import 'package:mobile_app/navigation/navigation_wrapper.dart';
+import 'package:mobile_app/services/api_service.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -16,6 +20,28 @@ class _SplashScreenState extends State<SplashScreen>
   late final AnimationController _logoController;
   late final AnimationController _sparkleController;
   Timer? _timer;
+
+  Future<Widget> _nextScreen() async {
+    final hasSession = Supabase.instance.client.auth.currentSession != null;
+    if (!hasSession) {
+      return const OnboardingScreen();
+    }
+
+    try {
+      await ApiService(
+        Supabase.instance.client,
+      ).getCurrentUser().timeout(const Duration(seconds: 5));
+      return const NavigationWrapper();
+    } on ApiException catch (error) {
+      if (error.statusCode == 401 &&
+          error.message.toLowerCase().contains('inactive')) {
+        return const BlockedAccountScreen();
+      }
+      return const NavigationWrapper();
+    } catch (_) {
+      return const NavigationWrapper();
+    }
+  }
 
   @override
   void initState() {
@@ -31,13 +57,17 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat();
 
-    _timer = Timer(const Duration(milliseconds: 2500), () {
+    _timer = Timer(const Duration(milliseconds: 2500), () async {
       if (!mounted) {
         return;
       }
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (_) => const OnboardingScreen()),
-      );
+      final nextScreen = await _nextScreen();
+      if (!mounted) {
+        return;
+      }
+      Navigator.of(
+        context,
+      ).pushReplacement(MaterialPageRoute(builder: (_) => nextScreen));
     });
   }
 

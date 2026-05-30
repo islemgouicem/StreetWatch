@@ -1,0 +1,1 @@
+epoch,phase,lr,train_total,train_bbox,train_cls,train_sev,val_total,val_bbox,val_cls,val_sev

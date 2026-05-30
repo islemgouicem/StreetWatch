@@ -22,7 +22,7 @@ class LeaderboardEntry {
       rank: rank,
       userId: json['id'] as String? ?? '',
       username: json['username'] as String? ?? 'Anonymous',
-      avatarUrl: json['avatar_url'] as String?,
+      avatarUrl: (json['avatar_url'] ?? json['avatarUrl']) as String?,
       points: json['points'] as int? ?? 0,
       reports: json['total_reports'] as int? ?? 0,
       verifiedReports: json['verified_reports'] as int? ?? 0,
@@ -43,5 +43,5 @@ class LeaderboardEntry {
 
   @override
   String toString() =>
-      'LeaderboardEntry(rank: $rank, username: $username, points: $points)';
+      'LeaderboardEntry(rank: $rank, username: $username, points: $points, avatarUrl: $avatarUrl)';
 }

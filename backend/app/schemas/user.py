@@ -9,6 +9,7 @@ class UserBase(BaseModel):
     username: str = Field(min_length=3, max_length=50)
     full_name: str | None = None
     avatar_url: str | None = None
+    image_profile: str | None = None
 
 
 class UserCreate(UserBase):
@@ -19,6 +20,11 @@ class UserUpdate(BaseModel):
     username: str | None = Field(default=None, min_length=3, max_length=50)
     full_name: str | None = None
     avatar_url: str | None = None
+    image_profile: str | None = None
+
+
+class AdminUserStatusUpdate(BaseModel):
+    is_active: bool
 
 
 class UserRead(UserBase):
@@ -27,7 +33,7 @@ class UserRead(UserBase):
     is_active: bool
     is_admin: bool
     created_at: datetime
-    updated_at: datetime
+    updated_at: datetime | None = None
     total_reports: int = 0
     verified_reports: int = 0
 

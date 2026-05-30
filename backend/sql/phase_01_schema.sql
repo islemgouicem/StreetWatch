@@ -4,9 +4,29 @@
 create extension if not exists postgis;
 create extension if not exists pgcrypto;
 
-create type if not exists damage_type_enum as enum ('pothole', 'crack', 'broken_sign', 'flooding', 'debris', 'other');
-create type if not exists severity_enum as enum ('low', 'medium', 'high');
-create type if not exists report_status_enum as enum ('pending', 'verified', 'rejected', 'under_review', 'resolved');
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'damage_type_enum') then
+    create type damage_type_enum as enum ('pothole', 'crack', 'broken_sign', 'flooding', 'debris', 'other');
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'severity_enum') then
+    create type severity_enum as enum ('low', 'medium', 'high');
+  end if;
+end
+$$;
+
+do $$
+begin
+  if not exists (select 1 from pg_type where typname = 'report_status_enum') then
+    create type report_status_enum as enum ('pending', 'verified', 'rejected', 'under_review', 'resolved');
+  end if;
+end
+$$;
 
 create table if not exists public.users (
   id uuid primary key,

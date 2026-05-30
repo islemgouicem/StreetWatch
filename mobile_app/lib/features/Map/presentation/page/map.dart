@@ -8,7 +8,7 @@ import 'package:mobile_app/features/Map/presentation/widgets/showDetails.dart';
 import 'package:mobile_app/features/Map/presentation/widgets/PulsingMarker.dart';
 
 class MapPage extends StatefulWidget {
-  MapPage({super.key});
+  const MapPage({super.key});
 
   @override
   State<MapPage> createState() => _MapPageState();
@@ -22,29 +22,38 @@ class _MapPageState extends State<MapPage> {
 
   bool show = false;
   String selectedSeverity = 'All';
+  final MapController _mapController = MapController();
+  String? _lastCenteredReportId;
 
   @override
   void initState() {
     super.initState();
-    context.read<ReportsBloc>().add(
-      const ReportsFetchNearbyEvent(
-        latitude: 36.68715422835151,
-        longitude: 2.8655571824826325,
-        radiusKm: 10,
-      ),
-    );
+    context.read<ReportsBloc>().add(const ReportsFetchEvent(pageSize: 100));
   }
 
   @override
   Widget build(BuildContext context) {
     final reportsState = context.watch<ReportsBloc>().state;
-    final markers = _buildMarkers(reportsState);
+    final reports = _reportsFromState(reportsState);
+    final markers = _buildMarkers(reports);
+
+    if (reports.isNotEmpty && _lastCenteredReportId != reports.first.id) {
+      _lastCenteredReportId = reports.first.id;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        _mapController.move(
+          LatLng(reports.first.latitude, reports.first.longitude),
+          15.0,
+        );
+      });
+    }
 
     return Scaffold(
       body: Stack(
         children: [
           // map layer
           FlutterMap(
+            mapController: _mapController,
             options: MapOptions(
               initialCenter: _defaultCenter,
               initialZoom: 15.0,
@@ -60,6 +69,26 @@ class _MapPageState extends State<MapPage> {
               MarkerLayer(markers: markers),
             ],
           ),
+          if (reportsState is ReportsLoading)
+            const Center(child: CircularProgressIndicator()),
+          if (reportsState is ReportsFailure)
+            Positioned(
+              left: 16,
+              right: 16,
+              bottom: 24,
+              child: Material(
+                elevation: 8,
+                borderRadius: BorderRadius.circular(14),
+                color: Colors.white,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Text(
+                    reportsState.message,
+                    style: const TextStyle(color: Colors.red),
+                  ),
+                ),
+              ),
+            ),
 
           SafeArea(
             bottom: false,
@@ -168,7 +197,7 @@ class _MapPageState extends State<MapPage> {
                               spacing: 10,
                               runSpacing: 10,
                               children: [
-                                _buildFilterButton('All', Colors.green),
+                                _buildFilterButton('All', Colors.grey),
                                 _buildFilterButton('Low', Colors.green),
                                 _buildFilterButton('Medium', Colors.orange),
                                 _buildFilterButton('High', Colors.red),
@@ -202,13 +231,15 @@ class _MapPageState extends State<MapPage> {
     );
   }
 
-  List<Marker> _buildMarkers(ReportsState state) {
-    final reports = state is NearbyReportsLoaded
+  List<Report> _reportsFromState(ReportsState state) {
+    return state is NearbyReportsLoaded
         ? state.reports
         : state is ReportsLoaded
         ? state.reports
         : <Report>[];
+  }
 
+  List<Marker> _buildMarkers(List<Report> reports) {
     final filtered = selectedSeverity == 'All'
         ? reports
         : reports
@@ -218,24 +249,6 @@ class _MapPageState extends State<MapPage> {
                     selectedSeverity.toLowerCase(),
               )
               .toList();
-
-    if (filtered.isEmpty) {
-      return [
-        Marker(
-          width: 70,
-          height: 70,
-          point: _defaultCenter,
-          child: GestureDetector(
-            onTap: () => showModalBottomSheet(
-              context: context,
-              backgroundColor: Colors.transparent,
-              builder: (context) => showDetails(context),
-            ),
-            child: PulsingMarker(),
-          ),
-        ),
-      ];
-    }
 
     return filtered
         .map(
@@ -247,9 +260,9 @@ class _MapPageState extends State<MapPage> {
               onTap: () => showModalBottomSheet(
                 context: context,
                 backgroundColor: Colors.transparent,
-                builder: (context) => showDetails(context),
+                builder: (context) => showDetails(context, report: report),
               ),
-              child: PulsingMarker(),
+              child: PulsingMarker(severity: report.severity.value.toLowerCase()),
             ),
           ),
         )

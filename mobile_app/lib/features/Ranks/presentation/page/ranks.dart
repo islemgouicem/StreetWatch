@@ -16,8 +16,6 @@ class _RanksPageState extends State<RanksPage>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
 
-  static const String _fallbackAvatar = 'lounis.png';
-
   @override
   void initState() {
     super.initState();
@@ -51,7 +49,7 @@ class _RanksPageState extends State<RanksPage>
           final rest = entries.length > 3
               ? entries.sublist(3)
               : <LeaderboardEntry>[];
-
+          
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -139,7 +137,7 @@ class _RanksPageState extends State<RanksPage>
                                 return hozrizontalWidget(
                                   name: entry.username,
                                   points: entry.points.toString(),
-                                  image: _fallbackAvatar,
+                                  image: entry.avatarUrl,
                                   level: ((entry.points ~/ 500) + 1)
                                       .toString(),
                                   rank: entry.rank.toString(),
@@ -272,7 +270,7 @@ class _RanksPageState extends State<RanksPage>
               child: verticalWidget(
                 name: second?.username ?? 'N/A',
                 points: (second?.points ?? 0).toString(),
-                image: _fallbackAvatar,
+                image: second?.avatarUrl,
                 level: (((second?.points ?? 0) ~/ 500) + 1).toString(),
                 rank: (second?.rank ?? 2).toString(),
                 badgeColor: const Color(0xFF3F6EDC),
@@ -296,7 +294,7 @@ class _RanksPageState extends State<RanksPage>
               child: verticalWidget(
                 name: first?.username ?? 'N/A',
                 points: (first?.points ?? 0).toString(),
-                image: _fallbackAvatar,
+                image: first?.avatarUrl,
                 level: (((first?.points ?? 0) ~/ 500) + 1).toString(),
                 rank: (first?.rank ?? 1).toString(),
                 badgeColor: Colors.amber,
@@ -328,7 +326,7 @@ class _RanksPageState extends State<RanksPage>
               child: verticalWidget(
                 name: third?.username ?? 'N/A',
                 points: (third?.points ?? 0).toString(),
-                image: _fallbackAvatar,
+                image: third?.avatarUrl,
                 level: (((third?.points ?? 0) ~/ 500) + 1).toString(),
                 rank: (third?.rank ?? 3).toString(),
                 badgeColor: const Color(0xFF3F6EDC),

@@ -250,7 +250,8 @@ class _HeaderSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasAvatar = avatarUrl != null && avatarUrl!.isNotEmpty;
+    final avatar = avatarUrl?.trim();
+    final hasAvatar = avatar != null && avatar.isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -366,22 +367,28 @@ class _HeaderSection extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: [
-                          CircleAvatar(
-                            radius: 56,
-                            backgroundColor: const Color(0xFFE2E8F0),
-                            backgroundImage: hasAvatar
-                                ? NetworkImage(avatarUrl!)
-                                : null,
-                            onBackgroundImageError: hasAvatar
-                                ? (_, __) {}
-                                : null,
-                            child: !hasAvatar
-                                ? const Icon(
-                                    Icons.person,
-                                    size: 54,
-                                    color: Color(0xFF64748B),
-                                  )
-                                : null,
+                          ClipOval(
+                            child: SizedBox(
+                              width: 112,
+                              height: 112,
+                              child: hasAvatar
+                                  ? Image.network(
+                                      avatar,
+                                      fit: BoxFit.cover,
+                                      loadingBuilder:
+                                          (context, child, loadingProgress) {
+                                            if (loadingProgress == null) {
+                                              return child;
+                                            }
+                                            return const _AvatarPlaceholder();
+                                          },
+                                      errorBuilder:
+                                          (context, error, stackTrace) {
+                                            return const _AvatarPlaceholder();
+                                          },
+                                    )
+                                  : const _AvatarPlaceholder(),
+                            ),
                           ),
                           Positioned(
                             right: -2,
@@ -603,6 +610,23 @@ class _StatsCard extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _AvatarPlaceholder extends StatelessWidget {
+  const _AvatarPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      color: const Color(0xFFE2E8F0),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.person,
+        size: 54,
+        color: Color(0xFF64748B),
+      ),
     );
   }
 }

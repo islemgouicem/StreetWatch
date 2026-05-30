@@ -1,0 +1,22 @@
+[project]
+name = "streetwatch-ai"
+version = "0.1.0"
+description = "StreetWatch AI model for road damage detection"
+requires-python = ">=3.10,<3.13"
+
+dependencies = [
+    "ultralytics>=8.0.0",
+    "opencv-python==4.8.0.74",
+    "wandb>=0.15.0",
+    "torch>=2.0.0",
+    "torchvision>=0.15.0",
+    "numpy>=1.22.0,<2.0.0",
+    "pyyaml>=6.0",
+]
+
+[tool.setuptools]
+packages = []
+
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
