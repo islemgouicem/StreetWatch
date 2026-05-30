@@ -6,7 +6,7 @@ import {
   type ReactNode,
 } from 'react';
 import type { Session, User } from '@supabase/supabase-js';
-import { API_BASE_URL } from '../config';
+import { API_BASE_URL, SUPABASE_CONFIG_ERROR } from '../config';
 import { isSupabaseConfigured, supabase } from '../supabaseClient';
 
 type AuthUser = User & { is_admin?: boolean };
@@ -22,6 +22,8 @@ interface AuthContextValue {
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 
+const sanitizeHeaderValue = (value: string) => value.trim().replace(/[^\x20-\x7E]+/g, '');
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [user, setUser] = useState<AuthUser | null>(null);
@@ -31,7 +33,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const loadAdminFlag = async (token: string) => {
     try {
       const res = await fetch(`${API_BASE_URL}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${sanitizeHeaderValue(token)}` },
       });
       if (res.ok) {
         const data = await res.json();
@@ -76,8 +78,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return 'Missing Supabase frontend configuration. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY, then rebuild the web image.';
     }
 
+    if (SUPABASE_CONFIG_ERROR) {
+      return `${SUPABASE_CONFIG_ERROR} Recheck the Vercel env vars and redeploy.`;
+    }
+
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    return error ? error.message : null;
+    if (!error) return null;
+
+    if (error.message === 'Invalid API key') {
+      return `${error.message}. The deployed anon key does not match the Supabase project URL.`;
+    }
+
+    return error.message;
   };
 
   const signOut = async () => {
