@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
+import { API_BASE_URL } from '../config';
 import { useAuth } from '../context/AuthContext';
 import type { Report, ReportStatus } from '../types';
 import { getDamageTypeLabel, severityLabel, statusLabel } from '../types';
-
-const BACKEND_URL = 'http://localhost:8000/api/v1';
 
 const STATUS_FILTERS: { label: string; value: ReportStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -36,7 +35,7 @@ export default function ReportsPage() {
     setError(null);
     try {
       const params = statusFilter !== 'all' ? `?status=${statusFilter}&limit=100` : '?limit=100';
-      const res = await fetch(`${BACKEND_URL}/reports${params}`);
+      const res = await fetch(`${API_BASE_URL}/reports${params}`);
       if (!res.ok) throw new Error(`Failed: ${res.status}`);
       const data: Report[] = await res.json();
       setReports(data);
@@ -55,7 +54,7 @@ export default function ReportsPage() {
     if (!session?.access_token) return;
     setActionLoading(reportId);
     try {
-      const res = await fetch(`${BACKEND_URL}/reports/${reportId}/${action}`, {
+      const res = await fetch(`${API_BASE_URL}/reports/${reportId}/${action}`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });

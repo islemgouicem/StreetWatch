@@ -10,4 +10,4 @@ WORKDIR /app
 COPY --from=builder /home/nonroot/.local /home/nonroot/.local
 ENV PATH=/home/nonroot/.local/bin:$PATH
 COPY . .
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

@@ -1,9 +1,8 @@
 import { useEffect, useState, useCallback } from 'react';
 import { MapView } from '../components/MapView';
+import { API_BASE_URL } from '../config';
 import type { DamageType, Report, ReportStatus, Severity } from '../types';
 import { damageTypeLabel, getDamageTypeLabel, normalizeDamageType, severityLabel, statusLabel } from '../types';
-
-const BACKEND_URL = 'http://localhost:8000/api/v1';
 
 const allDamageTypes: DamageType[] = ['pothole', 'longitudinal_crack', 'transverse_crack', 'alligator_crack', 'other'];
 const allSeverityLevels: Severity[] = ['low', 'medium', 'high'];
@@ -26,7 +25,7 @@ export default function MapPage() {
     try {
       setIsLoading(true);
       setError(null);
-      const res = await fetch(`${BACKEND_URL}/reports`);
+      const res = await fetch(`${API_BASE_URL}/reports`);
       if (!res.ok) throw new Error(`Server error: ${res.status}`);
       const data: Report[] = await res.json();
       setAllReports(data);

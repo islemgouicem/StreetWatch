@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const BACKEND_URL = 'http://localhost:8000/api/v1';
+import { API_BASE_URL } from '../config';
 
 type LeaderboardEntry = {
   rank: number;
@@ -29,7 +28,7 @@ export default function LeaderboardPage() {
       setIsLoading(true);
       setError(null);
       try {
-        const res = await fetch(`${BACKEND_URL}/leaderboard?limit=50`);
+        const res = await fetch(`${API_BASE_URL}/leaderboard?limit=50`);
         if (!res.ok) throw new Error(`Server error ${res.status}`);
         const data: LeaderboardEntry[] = await res.json();
         setEntries(data);

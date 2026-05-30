@@ -1,8 +1,10 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/core/theme/app_theme.dart';
 import 'package:mobile_app/models/index.dart';
 import 'package:mobile_app/services/api_service.dart';
+import 'package:mobile_app/services/offline_sync_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MyReportsScreen extends StatefulWidget {
@@ -17,6 +19,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
   bool _isLoading = true;
   String? _error;
   List<Report> _reports = const [];
+  List<MapEntry<String, ReportDraft>> _offlineDrafts = [];
 
   @override
   void initState() {
@@ -32,20 +35,128 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
     });
 
     try {
+      // 1. If online, sync queued drafts first
+      final hasConnection = await OfflineSyncService().hasInternet();
+      if (hasConnection) {
+        final syncedCount = await OfflineSyncService().syncQueue(_apiService);
+        if (syncedCount > 0 && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Successfully uploaded $syncedCount offline reports!'),
+              backgroundColor: const Color(0xFF22C55E),
+            ),
+          );
+        }
+      }
+
+      // 2. Fetch remaining offline drafts from local Hive storage
+      final localDrafts = OfflineSyncService().getQueuedDrafts();
+
+      // 3. Fetch remote reports
       final mine = await _apiService.getMyReports(page: 1, pageSize: 100);
 
       if (!mounted) return;
       setState(() {
+        _offlineDrafts = localDrafts;
         _reports = mine;
         _isLoading = false;
       });
     } catch (e) {
+      // 4. Even if network request fails, fetch local drafts!
+      final localDrafts = OfflineSyncService().getQueuedDrafts();
       if (!mounted) return;
       setState(() {
+        _offlineDrafts = localDrafts;
         _error = e.toString();
         _isLoading = false;
       });
     }
+  }
+
+  Future<void> _deleteDraft(String key) async {
+    await OfflineSyncService().deleteDraft(key);
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text('Draft deleted'),
+        backgroundColor: Color(0xFF64748B),
+      ),
+    );
+    _loadReports();
+  }
+
+  Future<void> _retrySyncSingle(String key, ReportDraft draft) async {
+    final hasConnection = await OfflineSyncService().hasInternet();
+    if (!hasConnection) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No internet connection. Try again later.'),
+          backgroundColor: Color(0xFFEF4444),
+        ),
+      );
+      return;
+    }
+
+    try {
+      final imageFile = File(draft.imagePath);
+      if (!await imageFile.exists()) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Image file not found on disk. Draft removed.'),
+            backgroundColor: Color(0xFFEF4444),
+          ),
+        );
+        await OfflineSyncService().deleteDraft(key);
+        _loadReports();
+        return;
+      }
+
+      final bytes = await imageFile.readAsBytes();
+      final imageName = draft.imagePath.split(Platform.pathSeparator).last;
+      final fileName = '${DateTime.now().millisecondsSinceEpoch}_$imageName';
+
+      final imageUrl = await _apiService.uploadReportImage(
+        fileName: fileName,
+        fileBytes: bytes,
+      );
+
+      await _apiService.createReport(
+        damageType: draft.damageType,
+        severity: draft.severity,
+        latitude: draft.latitude ?? 36.7538,
+        longitude: draft.longitude ?? 3.0588,
+        description: draft.description,
+        imageUrl: imageUrl,
+      );
+
+      await OfflineSyncService().deleteDraft(key);
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Report uploaded successfully!'),
+          backgroundColor: Color(0xFF22C55E),
+        ),
+      );
+      _loadReports();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Upload failed: $e'),
+          backgroundColor: const Color(0xFFEF4444),
+        ),
+      );
+    }
+  }
+
+  String _labelize(String value) {
+    return value
+        .split('_')
+        .map((part) => part.isEmpty ? '' : '${part[0].toUpperCase()}${part.substring(1)}')
+        .join(' ');
   }
 
   String _statusLabel(ReportStatus status) {
@@ -148,6 +259,8 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
         .where((report) => report.status == ReportStatus.resolved)
         .length;
 
+    final bool hasNothingAtAll = _reports.isEmpty && _offlineDrafts.isEmpty;
+
     return Scaffold(
       backgroundColor: const Color(0xFFF8FAFC),
       body: RefreshIndicator(
@@ -173,7 +286,7 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                         padding: EdgeInsets.symmetric(vertical: 24),
                         child: CircularProgressIndicator(),
                       )
-                    else if (_error != null)
+                    else if (_error != null && hasNothingAtAll)
                       Padding(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         child: Column(
@@ -193,35 +306,89 @@ class _MyReportsScreenState extends State<MyReportsScreen> {
                           ],
                         ),
                       )
-                    else if (_reports.isEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        child: Text(
-                          'You have not submitted any reports yet.',
-                          style: GoogleFonts.outfit(
-                            color: const Color(0xFF64748B),
-                            fontSize: 14,
+                    else ...[
+                      // ── Offline Drafts Section ──
+                      if (_offlineDrafts.isNotEmpty) ...[
+                        Row(
+                          children: [
+                            const Icon(Icons.cloud_off_rounded,
+                                color: Color(0xFFF59E0B), size: 20),
+                            const SizedBox(width: 8),
+                            Text(
+                              'Pending Upload (${_offlineDrafts.length})',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFFF59E0B),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 12),
+                        ..._offlineDrafts.map(
+                          (entry) => Padding(
+                            padding: const EdgeInsets.only(bottom: 16),
+                            child: _OfflineDraftCard(
+                              draft: entry.value,
+                              draftKey: entry.key,
+                              labelize: _labelize,
+                              onRetry: () =>
+                                  _retrySyncSingle(entry.key, entry.value),
+                              onDelete: () => _deleteDraft(entry.key),
+                            ),
                           ),
                         ),
-                      )
-                    else
-                      ..._reports.map(
-                        (report) => Padding(
-                          padding: const EdgeInsets.only(bottom: 20),
-                          child: _ReportCard(
-                            title: _damageLabel(report.damageType),
-                            location: _locationLabel(report),
-                            severity: _severityLabel(report.severity),
-                            severityColor: _severityColor(report.severity),
-                            status: _statusLabel(report.status),
-                            statusColor: _statusColor(report.status),
-                            statusIcon: _statusIcon(report.status),
-                            score: 'Score ${report.voteScore}',
-                            date: _formatDate(report.createdAt),
-                            imageUrl: report.imageUrl,
+                        const Divider(height: 32, color: Color(0xFFE2E8F0)),
+                      ],
+
+                      // ── Remote Reports Section ──
+                      if (_reports.isNotEmpty) ...[
+                        if (_offlineDrafts.isNotEmpty) ...[
+                          Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              'Uploaded Reports',
+                              style: GoogleFonts.outfit(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w700,
+                                color: const Color(0xFF334155),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 12),
+                        ],
+                        ..._reports.map(
+                          (report) => Padding(
+                            padding: const EdgeInsets.only(bottom: 20),
+                            child: _ReportCard(
+                              title: _damageLabel(report.damageType),
+                              location: _locationLabel(report),
+                              severity: _severityLabel(report.severity),
+                              severityColor: _severityColor(report.severity),
+                              status: _statusLabel(report.status),
+                              statusColor: _statusColor(report.status),
+                              statusIcon: _statusIcon(report.status),
+                              score: 'Score ${report.voteScore}',
+                              date: _formatDate(report.createdAt),
+                              imageUrl: report.imageUrl,
+                            ),
                           ),
                         ),
-                      ),
+                      ],
+
+                      // ── True Empty State ──
+                      if (hasNothingAtAll)
+                        Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          child: Text(
+                            'You have not submitted any reports yet.',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFF64748B),
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                    ],
                     const SizedBox(height: 40),
                   ],
                 ),
@@ -356,6 +523,203 @@ class _StatsSummaryRow extends StatelessWidget {
               color: const Color(0xFF64748B),
               fontWeight: FontWeight.w500,
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OfflineDraftCard extends StatelessWidget {
+  final ReportDraft draft;
+  final String draftKey;
+  final String Function(String) labelize;
+  final VoidCallback onRetry;
+  final VoidCallback onDelete;
+
+  const _OfflineDraftCard({
+    required this.draft,
+    required this.draftKey,
+    required this.labelize,
+    required this.onRetry,
+    required this.onDelete,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final imageFile = File(draft.imagePath);
+    final hasLocation = draft.latitude != null && draft.longitude != null;
+
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFFBEB),
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: const Color(0xFFF59E0B).withOpacity(0.4), width: 1.5),
+        boxShadow: [
+          BoxShadow(
+            color: const Color(0xFFF59E0B).withOpacity(0.08),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Thumbnail from local file
+              Container(
+                width: 80,
+                height: 80,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  color: const Color(0xFFF8FAFC),
+                  border: Border.all(color: const Color(0xFFF1F5F9), width: 1),
+                ),
+                clipBehavior: Clip.antiAlias,
+                child: imageFile.existsSync()
+                    ? Image.file(imageFile, fit: BoxFit.cover)
+                    : const Center(
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: Color(0xFF94A3B8),
+                          size: 28,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            labelize(draft.damageType),
+                            style: GoogleFonts.outfit(
+                              fontSize: 17,
+                              fontWeight: FontWeight.bold,
+                              color: const Color(0xFF0F172A),
+                            ),
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF59E0B).withOpacity(0.15),
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                          child: Text(
+                            labelize(draft.severity),
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFFD97706),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    if (hasLocation)
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            color: Color(0xFF94A3B8),
+                            size: 14,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${draft.latitude!.toStringAsFixed(5)}, ${draft.longitude!.toStringAsFixed(5)}',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFF64748B),
+                              fontSize: 13,
+                            ),
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 10),
+                    // Pending Sync badge
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 10,
+                        vertical: 6,
+                      ),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFF59E0B).withOpacity(0.15),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.cloud_off_rounded,
+                              color: Color(0xFFD97706), size: 14),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Pending Sync',
+                            style: GoogleFonts.outfit(
+                              color: const Color(0xFFD97706),
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: Color(0xFFF1F5F9)),
+          const SizedBox(height: 10),
+          // Action buttons
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              TextButton.icon(
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline, size: 18, color: Color(0xFFEF4444)),
+                label: Text(
+                  'Delete',
+                  style: GoogleFonts.outfit(
+                    color: const Color(0xFFEF4444),
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              ElevatedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.cloud_upload_outlined, size: 18),
+                label: Text(
+                  'Retry Upload',
+                  style: GoogleFonts.outfit(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFF59E0B),
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                ),
+              ),
+            ],
           ),
         ],
       ),

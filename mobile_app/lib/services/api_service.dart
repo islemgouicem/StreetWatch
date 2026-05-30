@@ -27,12 +27,8 @@ class ApiService {
       return _envBaseUrl;
     }
 
-    // Android emulator cannot reach host machine on localhost.
-    if (!kIsWeb && Platform.isAndroid) {
-      return 'http://10.0.2.2:8000/api/v1';
-    }
-
-    return 'http://localhost:8000/api/v1';
+    // Production backend on Render
+    return 'https://streetwatch.onrender.com/api/v1';
   }
 
   final SupabaseClient _supabase;
