@@ -126,14 +126,20 @@ class ApiService {
     String? status,
   }) async {
     try {
+      final userId = _supabase.auth.currentUser?.id;
+      if (userId == null || userId.isEmpty) {
+        throw ApiException('You must be signed in to load your reports.');
+      }
+
       final queryParams = {
         if (page != null) 'page': page.toString(),
         if (pageSize != null) 'page_size': pageSize.toString(),
-        ...?status == null ? null : {'status': status},
+        'user_id': userId,
+        if (status != null) 'status': status,
       };
 
       final uri = Uri.parse(
-        '$baseUrl/users/me/reports',
+        '$baseUrl/reports',
       ).replace(queryParameters: queryParams.isNotEmpty ? queryParams : null);
 
       final response = await http.get(uri, headers: await _getHeaders());
