@@ -1,4 +1,7 @@
-# StreetWatch
+<p align="center">
+  <img src="https://github.com/islemgouicem/StreetWatch/blob/main/mobile_app/assets/logo.png" width="80" style="vertical-align: middle; margin-right: 10px;" />
+  <h1 style="font-size: 28px; font-weight: bold;">StreetWatch</h1>
+</p>
 StreetWatch is a road-damage reporting platform with three main client surfaces and one shared backend:
 
 - A Flutter mobile app for citizens to capture and submit damage reports.
