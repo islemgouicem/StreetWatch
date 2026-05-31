@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/features/auth/presentation/pages/blocked_account_screen.dart';
@@ -14,6 +16,7 @@ class SignInScreen extends StatefulWidget {
 }
 
 class _SignInScreenState extends State<SignInScreen> {
+  static const _authTimeout = Duration(seconds: 30);
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
@@ -46,10 +49,10 @@ class _SignInScreenState extends State<SignInScreen> {
     try {
       await Supabase.instance.client.auth
           .signInWithPassword(email: email, password: password)
-          .timeout(const Duration(seconds: 8));
+          .timeout(_authTimeout);
 
       final apiService = ApiService(Supabase.instance.client);
-      await apiService.getCurrentUser().timeout(const Duration(seconds: 5));
+      await apiService.getCurrentUser().timeout(_authTimeout);
 
       if (!mounted) return;
       _goToApp();
@@ -70,6 +73,15 @@ class _SignInScreenState extends State<SignInScreen> {
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text(error.message)));
+    } on TimeoutException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Login is taking longer than usual. Please check your internet connection and try again.',
+          ),
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(

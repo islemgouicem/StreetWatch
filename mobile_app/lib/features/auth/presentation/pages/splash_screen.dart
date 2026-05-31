@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:mobile_app/features/auth/presentation/pages/blocked_account_screen.dart';
@@ -30,7 +31,7 @@ class _SplashScreenState extends State<SplashScreen>
     try {
       await ApiService(
         Supabase.instance.client,
-      ).getCurrentUser().timeout(const Duration(seconds: 5));
+      ).getCurrentUser().timeout(const Duration(seconds: 30));
       return const NavigationWrapper();
     } on ApiException catch (error) {
       if (error.statusCode == 401 &&
@@ -49,7 +50,7 @@ class _SplashScreenState extends State<SplashScreen>
 
     _logoController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1000),
+      duration: const Duration(milliseconds: 5000),
     )..forward();
 
     _sparkleController = AnimationController(
@@ -57,7 +58,10 @@ class _SplashScreenState extends State<SplashScreen>
       duration: const Duration(milliseconds: 1500),
     )..repeat();
 
-    _timer = Timer(const Duration(milliseconds: 2500), () async {
+    final splashDuration = kDebugMode
+        ? const Duration(seconds: 8)
+        : const Duration(milliseconds: 2500);
+    _timer = Timer(splashDuration, () async {
       if (!mounted) {
         return;
       }
@@ -147,10 +151,12 @@ class _SplashScreenState extends State<SplashScreen>
                               ),
                             ],
                           ),
-                          child: const Icon(
-                            Icons.eco_rounded,
-                            size: 66,
-                            color: Color(0xFF10B981),
+                          child: Padding(
+                            padding: const EdgeInsets.all(14),
+                            child: Image.asset(
+                              'assets/logo.png',
+                              fit: BoxFit.contain,
+                            ),
                           ),
                         ),
                         Positioned(

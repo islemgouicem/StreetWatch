@@ -73,6 +73,7 @@ dev_dependencies:
 flutter:
   assets:
     - assets/
+    - assets/logo.png
     - assets/models/
     - assets/mock/
     - assets/mock/rdd_test_images/
